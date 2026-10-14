@@ -4,7 +4,6 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   
-  <!-- Apple Home Screen Web App Meta Tags -->
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="Asset Scanner">
@@ -14,7 +13,7 @@
 
   <title>Asset Tag Scanner & Live Inventory</title>
 
-  <!-- Firebase Modular Scripts (CDN) -->
+  <!-- Firebase Modular Scripts -->
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
     import { getAnalytics } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-analytics.js";
@@ -22,7 +21,6 @@
       getFirestore, collection, doc, onSnapshot, setDoc, updateDoc, deleteDoc, writeBatch 
     } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
-    // Your Web App's Firebase Configuration
     const firebaseConfig = {
       apiKey: "AIzaSyBNBsRb9v9Mpk362Zoit0DaaChNXHgiJug",
       authDomain: "maum-6b43c.firebaseapp.com",
@@ -33,18 +31,18 @@
       measurementId: "G-54MJQBLY7V"
     };
 
-    // Initialize Firebase & Analytics
-    const app = initializeApp(firebaseConfig);
-    const analytics = getAnalytics(app);
-    const db = getFirestore(app);
+    try {
+      const app = initializeApp(firebaseConfig);
+      const analytics = getAnalytics(app);
+      const db = getFirestore(app);
 
-    // Expose database instances and helpers to window scope
-    window.db = db;
-    window.analytics = analytics;
-    window.fs = { collection, doc, onSnapshot, setDoc, updateDoc, deleteDoc, writeBatch };
-    
-    // Notify application that Firebase is connected
-    window.dispatchEvent(new Event('firebase-ready'));
+      window.db = db;
+      window.analytics = analytics;
+      window.fs = { collection, doc, onSnapshot, setDoc, updateDoc, deleteDoc, writeBatch };
+      window.dispatchEvent(new Event('firebase-ready'));
+    } catch (e) {
+      window.dispatchEvent(new CustomEvent('firebase-error', { detail: e.message }));
+    }
   </script>
 
   <style>
@@ -65,78 +63,93 @@
     }
     body { 
       margin: 0; 
-      padding: calc(env(safe-area-inset-top, 16px) + 12px) calc(env(safe-area-inset-right, 16px) + 8px) calc(env(safe-area-inset-bottom, 16px) + 12px) calc(env(safe-area-inset-left, 16px) + 8px); 
+      padding: calc(env(safe-area-inset-top, 12px) + 8px) calc(env(safe-area-inset-right, 12px) + 8px) calc(env(safe-area-inset-bottom, 12px) + 8px) calc(env(safe-area-inset-left, 12px) + 8px); 
       background-color: var(--bg); 
       color: var(--text); 
+      font-size: clamp(0.85rem, 1vw + 0.5rem, 0.95rem);
     }
+
     h1 { 
       margin: 0 0 12px 0; 
-      font-size: 1.35rem; 
+      font-size: clamp(1.15rem, 1.8vw + 0.5rem, 1.45rem); 
       color: var(--primary-dark); 
       display: flex; 
       align-items: center; 
       justify-content: space-between; 
-      flex-wrap: wrap;
+      flex-wrap: wrap; 
+      gap: 8px; 
+    }
+    .header-actions {
+      display: flex;
+      align-items: center;
       gap: 8px;
+      flex-wrap: wrap;
     }
     .badge { 
-      font-size: 0.85rem; 
+      font-size: clamp(0.75rem, 1vw, 0.85rem); 
       padding: 4px 10px; 
       background: #e3f2fd; 
       color: var(--primary-dark); 
       border-radius: 12px; 
       font-weight: normal; 
+      white-space: nowrap;
     }
+    
     .sync-status {
       display: inline-flex;
       align-items: center;
       gap: 6px;
-      font-size: 0.8rem;
+      font-size: clamp(0.75rem, 1vw, 0.8rem);
       font-weight: 500;
-      color: var(--accent);
-      background: #e8f5e9;
       padding: 4px 10px;
       border-radius: 12px;
+      background: #fff3e0;
+      color: #e65100;
+      white-space: nowrap;
     }
-    .sync-dot {
-      width: 8px;
-      height: 8px;
-      border-radius: 50%;
-      background: var(--accent);
-      box-shadow: 0 0 0 2px rgba(46, 125, 50, 0.2);
-    }
-    
+    .sync-status.online { background: #e8f5e9; color: var(--accent); }
+    .sync-status.error { background: #ffebee; color: var(--danger); }
+    .sync-dot { width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
+
     .card { 
       background: var(--card-bg); 
       border-radius: 8px; 
-      padding: 14px; 
+      padding: clamp(10px, 1.5vw, 16px); 
       box-shadow: 0 2px 6px rgba(0,0,0,0.06); 
-      margin-bottom: 14px; 
+      margin-bottom: 12px; 
       border: 1px solid var(--border); 
     }
+
+    /* Auto-Resizing Flexible Grid */
     .grid-form { 
       display: grid; 
-      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); 
-      gap: 12px; 
+      grid-template-columns: repeat(auto-fit, minmax(clamp(150px, 20vw, 220px), 1fr)); 
+      gap: clamp(8px, 1.2vw, 12px); 
       align-items: end; 
     }
     .form-group { 
       display: flex; 
       flex-direction: column; 
       gap: 4px; 
+      width: 100%;
     }
     label { 
-      font-size: 0.8rem; 
+      font-size: clamp(0.7rem, 0.9vw, 0.8rem); 
       font-weight: 600; 
       color: var(--text-muted); 
       text-transform: uppercase; 
       letter-spacing: 0.5px; 
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
     input, select, button { 
-      padding: 9px 12px; 
+      width: 100%;
+      height: clamp(38px, 4.5vw, 44px);
+      padding: 0 12px; 
       border-radius: 6px; 
       border: 1px solid var(--border); 
-      font-size: 0.95rem; 
+      font-size: clamp(0.85rem, 1vw + 0.4rem, 0.95rem); 
     }
     input:focus, select:focus { 
       outline: none; 
@@ -150,16 +163,19 @@
       letter-spacing: 1px; 
     }
 
+    /* Buttons with fluid response */
     button { 
       cursor: pointer; 
       font-weight: 600; 
-      transition: background 0.15s ease; 
+      transition: background 0.15s ease, transform 0.05s ease; 
       border: none; 
       display: inline-flex; 
       align-items: center; 
       justify-content: center; 
       gap: 6px; 
+      white-space: nowrap;
     }
+    button:active { transform: scale(0.98); }
     .btn-primary { background: var(--primary); color: white; }
     .btn-primary:hover { background: var(--primary-dark); }
     .btn-success { background: var(--accent); color: white; }
@@ -167,6 +183,7 @@
     .btn-secondary { background: #eceff1; color: #37474f; border: 1px solid var(--border); }
     .btn-secondary:hover { background: #cfd8dc; }
 
+    /* Auto-Resizing Actions Bar */
     .actions-bar { 
       display: flex; 
       flex-wrap: wrap; 
@@ -178,15 +195,29 @@
       display: flex; 
       flex-wrap: wrap; 
       gap: 8px; 
-      flex: 1; 
-      min-width: 280px; 
+      flex: 1 1 260px; 
+    }
+    .filter-group input {
+      flex: 1 1 180px;
+    }
+    .filter-group button {
+      flex: 0 1 auto;
+      width: auto;
+      padding: 0 14px;
     }
     .btn-group { 
       display: flex; 
       gap: 8px; 
       flex-wrap: wrap; 
+      flex: 1 1 auto;
+      justify-content: flex-end;
+    }
+    .btn-group button {
+      flex: 1 1 auto;
+      min-width: 110px;
     }
 
+    /* Auto-Resizing Mass Bar */
     .mass-bar { 
       background: #fff8e1; 
       border: 1px dashed #ffb300; 
@@ -198,6 +229,16 @@
       gap: 8px; 
       flex-wrap: wrap; 
     }
+    .mass-bar select, .mass-bar input {
+      flex: 1 1 160px;
+      height: 38px;
+    }
+    .mass-bar button {
+      flex: 0 1 auto;
+      width: auto;
+      height: 38px;
+      padding: 0 18px;
+    }
     
     .table-container { 
       overflow-x: auto; 
@@ -205,12 +246,13 @@
       border-radius: 8px; 
       border: 1px solid var(--border); 
       max-height: 520px; 
+      -webkit-overflow-scrolling: touch;
     }
     table { 
       width: 100%; 
       border-collapse: collapse; 
-      min-width: 820px; 
-      font-size: 0.9rem; 
+      min-width: 800px; 
+      font-size: clamp(0.8rem, 1vw, 0.9rem); 
     }
     th, td { 
       padding: 8px 10px; 
@@ -232,84 +274,97 @@
       border: 1px solid transparent; 
       background: transparent; 
       padding: 4px; 
-      font-size: 0.9rem; 
+      font-size: inherit; 
       border-radius: 4px; 
+      height: 32px;
     }
     .editable-input:focus { 
       border: 1px solid var(--primary); 
       background: #ffffff; 
     }
     .row-action { 
-      padding: 4px 8px; 
+      padding: 0 8px; 
+      height: 28px;
       font-size: 0.8rem; 
       border-radius: 4px; 
+      width: auto;
     }
 
     .status-msg { 
-      font-size: 0.82rem; 
+      font-size: clamp(0.75rem, 0.9vw, 0.85rem); 
       font-weight: 500; 
       min-height: 18px; 
-      margin-top: 4px; 
+      margin-top: 6px; 
     }
     .status-ok { color: var(--accent); }
-    .status-warn { color: #e65100; }
+    .status-warn { color: var(--danger); }
 
     /* Modal Styling */
-    .modal-overlay {
-      display: none;
-      position: fixed;
-      top: 0; left: 0; right: 0; bottom: 0;
-      background: rgba(0, 0, 0, 0.45);
-      z-index: 100;
-      justify-content: center;
-      align-items: center;
-      padding: 16px;
+    .modal-overlay { 
+      display: none; 
+      position: fixed; 
+      top: 0; left: 0; right: 0; bottom: 0; 
+      background: rgba(0, 0, 0, 0.45); 
+      z-index: 100; 
+      justify-content: center; 
+      align-items: center; 
+      padding: clamp(8px, 2vw, 16px); 
     }
     .modal-overlay.active { display: flex; }
-    .modal-card {
-      background: #ffffff;
-      border-radius: 10px;
-      max-width: 680px;
-      width: 100%;
-      max-height: 90vh;
-      display: flex;
-      flex-direction: column;
-      box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+    .modal-card { 
+      background: #ffffff; 
+      border-radius: 10px; 
+      max-width: 760px; 
+      width: 100%; 
+      max-height: 90vh; 
+      display: flex; 
+      flex-direction: column; 
+      box-shadow: 0 10px 25px rgba(0,0,0,0.2); 
     }
-    .modal-header {
-      padding: 16px;
-      border-bottom: 1px solid var(--border);
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
+    .modal-header { 
+      padding: 14px 16px; 
+      border-bottom: 1px solid var(--border); 
+      display: flex; 
+      justify-content: space-between; 
+      align-items: center; 
     }
-    .modal-header h2 { margin: 0; font-size: 1.15rem; color: var(--primary-dark); }
-    .modal-body {
-      padding: 16px;
-      overflow-y: auto;
-      flex: 1;
+    .modal-header h2 { margin: 0; font-size: clamp(1rem, 1.4vw, 1.15rem); color: var(--primary-dark); }
+    .modal-body { padding: 14px 16px; overflow-y: auto; flex: 1; -webkit-overflow-scrolling: touch; }
+    .modal-footer { 
+      padding: 12px 16px; 
+      border-top: 1px solid var(--border); 
+      display: flex; 
+      justify-content: space-between; 
+      align-items: center; 
+      background: #fafafa; 
+      flex-wrap: wrap; 
+      gap: 8px; 
     }
-    .modal-footer {
-      padding: 12px 16px;
-      border-top: 1px solid var(--border);
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      background: #fafafa;
+    .modal-footer button {
+      flex: 1 1 auto;
+      max-width: 280px;
     }
-    .loc-add-form {
-      display: grid;
-      grid-template-columns: 1fr 1fr 1fr auto;
+    .loc-add-form { 
+      display: grid; 
+      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); 
+      gap: 8px; 
+      margin-bottom: 14px; 
+      align-items: end; 
+      background: #f8fafc; 
+      padding: 12px; 
+      border-radius: 6px; 
+      border: 1px solid var(--border); 
+    }
+    .loc-add-form button {
+      height: clamp(38px, 4.5vw, 44px);
+    }
+    .modal-toolbar { 
+      display: flex; 
+      justify-content: space-between; 
+      align-items: center; 
+      margin-bottom: 8px; 
+      flex-wrap: wrap;
       gap: 8px;
-      margin-bottom: 16px;
-      align-items: end;
-      background: #f8fafc;
-      padding: 12px;
-      border-radius: 6px;
-      border: 1px solid var(--border);
-    }
-    @media (max-width: 600px) {
-      .loc-add-form { grid-template-columns: 1fr; }
     }
   </style>
 </head>
@@ -317,9 +372,9 @@
 
   <h1>
     <span>Asset Tag Scanner</span>
-    <div style="display:flex; gap:8px; align-items:center;">
-      <span class="sync-status" id="cloudStatus"><span class="sync-dot"></span> Cloud Live</span>
-      <button class="btn-secondary" onclick="openLocationManager()" style="font-size:0.85rem; padding: 6px 12px;">Manage Rooms</button>
+    <div class="header-actions">
+      <span class="sync-status" id="cloudStatus"><span class="sync-dot"></span> Connecting...</span>
+      <button class="btn-secondary" onclick="openLocationManager()" style="font-size:0.85rem; padding: 0 12px; width: auto; height: 32px;">Manage Rooms</button>
       <span class="badge" id="assetCount">0 Records</span>
     </div>
   </h1>
@@ -328,7 +383,7 @@
   <div class="card">
     <div class="grid-form">
       <div class="form-group">
-        <label for="roomSelect">1. Target Room (Lookup)</label>
+        <label for="roomSelect">1. Target Room</label>
         <select id="roomSelect" onchange="syncLocationDetails()">
           <option value="">-- Choose Room --</option>
         </select>
@@ -350,7 +405,7 @@
       </div>
 
       <div class="form-group">
-        <label for="scanInput">3. Scan 6-Digit Asset Tag</label>
+        <label for="scanInput">3. Scan 6-Digit Asset</label>
         <input type="text" id="scanInput" class="scanner-field" placeholder="Ready to scan..." autofocus autocomplete="off" inputmode="numeric">
       </div>
 
@@ -365,7 +420,7 @@
   <div class="card">
     <div class="actions-bar">
       <div class="filter-group">
-        <input type="text" id="searchInput" placeholder="Search Teacher or Room..." oninput="renderTable()" style="max-width: 240px;">
+        <input type="text" id="searchInput" placeholder="Search Teacher or Room..." oninput="renderTable()">
         <button class="btn-secondary" onclick="document.getElementById('searchInput').value=''; renderTable();">Clear</button>
       </div>
       <div class="btn-group">
@@ -377,14 +432,14 @@
 
     <!-- Mass Update Bar -->
     <div id="massUpdateBar" class="mass-bar">
-      <strong>Mass Update (<span id="selectedCount">0</span> selected):</strong>
+      <strong style="white-space: nowrap;">Mass Update (<span id="selectedCount">0</span>):</strong>
       <select id="massField" onchange="toggleMassInput()">
         <option value="room">Room, Teacher & Class</option>
         <option value="cart">Cart Asset Tag</option>
         <option value="notes">Notes</option>
       </select>
       <select id="massRoomVal" style="display:inline-block;"></select>
-      <input type="text" id="massTextVal" placeholder="New value..." style="display:none; max-width:200px;">
+      <input type="text" id="massTextVal" placeholder="New value..." style="display:none;">
       <button class="btn-primary" onclick="applyMassUpdate()">Apply</button>
     </div>
   </div>
@@ -414,7 +469,7 @@
     <div class="modal-card">
       <div class="modal-header">
         <h2>Manage Rooms & Locations (Cloud Synced)</h2>
-        <button class="btn-secondary" onclick="closeLocationManager()" style="padding:4px 8px;">✕</button>
+        <button class="btn-secondary" onclick="closeLocationManager()" style="padding: 0; width: 32px; height: 32px; font-size: 1rem;">✕</button>
       </div>
       <div class="modal-body">
         <div class="loc-add-form">
@@ -430,13 +485,25 @@
             <label>Class / Grade</label>
             <input type="text" id="newClass" placeholder="e.g. 4th Grade">
           </div>
-          <button class="btn-success" onclick="addNewLocation()" style="height:38px;">+ Add Room</button>
+          <button class="btn-success" onclick="addNewLocation()">+ Add Room</button>
         </div>
 
-        <div style="max-height: 380px; overflow-y: auto; border: 1px solid var(--border); border-radius: 6px;">
+        <div class="modal-toolbar">
+          <span style="font-size: 0.85rem; color: var(--text-muted);">
+            Total: <strong id="locTotalCount">0</strong> rooms
+          </span>
+          <button id="btnDeleteSelectedRooms" class="btn-danger" onclick="deleteSelectedLocations()" style="font-size: 0.8rem; padding: 0 12px; height: 32px; width: auto; display: none;">
+            Delete Selected (<span id="locSelectedCount">0</span>)
+          </button>
+        </div>
+
+        <div style="max-height: 380px; overflow-y: auto; border: 1px solid var(--border); border-radius: 6px; -webkit-overflow-scrolling: touch;">
           <table style="min-width: 100%;">
             <thead>
               <tr>
+                <th style="width: 38px; text-align: center;">
+                  <input type="checkbox" id="selectAllLocations" onclick="toggleSelectAllLocations(this.checked)">
+                </th>
                 <th style="width: 90px;">Room No.</th>
                 <th>Teacher</th>
                 <th style="width: 120px;">Class</th>
@@ -448,14 +515,13 @@
         </div>
       </div>
       <div class="modal-footer">
-        <button class="btn-danger" onclick="resetLocationsToDefault()" style="font-size:0.8rem;">Reset to Default (ES - LOCATION)</button>
-        <button class="btn-primary" onclick="closeLocationManager()">Done</button>
+        <button class="btn-danger" onclick="resetLocationsToDefault()" style="font-size:0.8rem; height: 36px;">Reset to Default</button>
+        <button class="btn-primary" onclick="closeLocationManager()" style="height: 36px;">Done</button>
       </div>
     </div>
   </div>
 
 <script>
-// Default Spreadsheet Seed Dataset
 const defaultLocationDirectory = [
   {"Room No.": "P209", "Class": "LAMPS", "Teacher": "Harris, Brittany"},
   {"Room No.": "E402", "Class": "4th Grade", "Teacher": "Carter, Cynthia"},
@@ -504,40 +570,53 @@ const defaultLocationDirectory = [
 let locationDirectory = defaultLocationDirectory;
 let inventory = [];
 let selectedDocIds = new Set();
+let selectedLocIndices = new Set();
 let isCloudReady = false;
 
-// Connect to Firestore real-time listeners once script is ready
+window.addEventListener('firebase-error', (e) => {
+  const statusEl = document.getElementById('cloudStatus');
+  statusEl.className = 'sync-status error';
+  statusEl.innerHTML = `<span class="sync-dot"></span> Init Error`;
+  document.getElementById('scanFeedback').innerHTML = `<span class="status-warn">Firebase Error: ${e.detail}</span>`;
+});
+
 window.addEventListener('firebase-ready', () => {
   isCloudReady = true;
-  document.getElementById('cloudStatus').innerHTML = '<span class="sync-dot"></span> Cloud Live';
+  const statusEl = document.getElementById('cloudStatus');
 
-  // 1. Listen for real-time inventory updates
   const invCol = window.fs.collection(window.db, "inventory");
   window.fs.onSnapshot(invCol, (snapshot) => {
+    statusEl.className = 'sync-status online';
+    statusEl.innerHTML = '<span class="sync-dot"></span> Cloud Live';
+
     inventory = [];
     snapshot.forEach(docSnap => {
       inventory.push({ id: docSnap.id, ...docSnap.data() });
     });
-    // Sort newest scans to top
     inventory.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
     document.getElementById('assetCount').innerText = `${inventory.length} Records`;
     renderTable();
   }, (err) => {
-    console.warn("Firestore inv sync:", err);
+    statusEl.className = 'sync-status error';
+    statusEl.innerHTML = '<span class="sync-dot"></span> Sync Blocked';
+    document.getElementById('scanFeedback').innerHTML = 
+      `<span class="status-warn">Cloud Permission Denied: Check Firestore Security Rules! (${err.message})</span>`;
   });
 
-  // 2. Listen for real-time locations directory
   const locDoc = window.fs.doc(window.db, "config", "locations");
   window.fs.onSnapshot(locDoc, (docSnap) => {
     if (docSnap.exists() && Array.isArray(docSnap.data().list)) {
       locationDirectory = docSnap.data().list;
     } else {
-      // First run: seed Firestore with default spreadsheet directory
-      window.fs.setDoc(locDoc, { list: defaultLocationDirectory });
+      window.fs.setDoc(locDoc, { list: defaultLocationDirectory }).catch(err => {
+        console.warn("Initial seed error:", err.message);
+      });
       locationDirectory = defaultLocationDirectory;
     }
     initDropdowns();
     renderLocationList();
+  }, (err) => {
+    console.warn("Location sync denied:", err.message);
   });
 });
 
@@ -574,7 +653,6 @@ function syncLocationDetails() {
   }
 }
 
-// Scanner Input Handling
 const scanInput = document.getElementById('scanInput');
 let scanTimer = null;
 
@@ -626,16 +704,14 @@ async function handleScanSubmit() {
   try {
     if (isCloudReady) {
       await window.fs.setDoc(window.fs.doc(window.db, "inventory", newId), record);
+      feedback.innerHTML = `<span class="status-ok">Recorded Asset #${rawTag} &rarr; Room ${loc["Room No."]} (${loc["Teacher"]})</span>`;
     } else {
-      // Fallback
-      inventory.unshift({ id: newId, ...record });
-      renderTable();
+      feedback.innerHTML = `<span class="status-warn">Cloud not connected yet. Check network.</span>`;
     }
-    feedback.innerHTML = `<span class="status-ok">Recorded Asset #${rawTag} &rarr; Room ${loc["Room No."]} (${loc["Teacher"]})</span>`;
     scanInput.value = '';
     scanInput.focus();
   } catch (err) {
-    feedback.innerHTML = `<span class="status-warn">Cloud error: ${err.message}</span>`;
+    feedback.innerHTML = `<span class="status-warn">Cloud write failed: ${err.message}</span>`;
   }
 }
 
@@ -678,7 +754,7 @@ async function updateRowField(docId, field, value) {
     const docRef = window.fs.doc(window.db, "inventory", docId);
     await window.fs.updateDoc(docRef, { [field]: value });
   } catch (e) {
-    console.error("Update error:", e);
+    document.getElementById('scanFeedback').innerHTML = `<span class="status-warn">Update failed: ${e.message}</span>`;
   }
 }
 
@@ -688,7 +764,7 @@ async function deleteRow(docId) {
     await window.fs.deleteDoc(window.fs.doc(window.db, "inventory", docId));
     selectedDocIds.delete(docId);
   } catch (e) {
-    console.error("Delete error:", e);
+    document.getElementById('scanFeedback').innerHTML = `<span class="status-warn">Delete failed: ${e.message}</span>`;
   }
 }
 
@@ -765,23 +841,30 @@ async function deleteSelected() {
   selectedDocIds.clear();
 }
 
-/* Location Directory Management */
 function openLocationManager() {
+  selectedLocIndices.clear();
   renderLocationList();
   document.getElementById('locationModal').classList.add('active');
 }
 
 function closeLocationManager() {
   document.getElementById('locationModal').classList.remove('active');
+  selectedLocIndices.clear();
   syncLocationDetails();
 }
 
 function renderLocationList() {
   const tbody = document.getElementById('locationListBody');
   tbody.innerHTML = '';
+  document.getElementById('locTotalCount').innerText = locationDirectory.length;
+
   locationDirectory.forEach((loc, idx) => {
+    const isChecked = selectedLocIndices.has(idx);
     const tr = document.createElement('tr');
     tr.innerHTML = `
+      <td style="text-align: center;">
+        <input type="checkbox" onchange="toggleSelectLocation(${idx}, this.checked)" ${isChecked ? 'checked' : ''}>
+      </td>
       <td><input class="editable-input" value="${escapeHtml(loc["Room No."])}" onchange="updateLocationField(${idx}, 'Room No.', this.value)"></td>
       <td><input class="editable-input" value="${escapeHtml(loc["Teacher"])}" onchange="updateLocationField(${idx}, 'Teacher', this.value)"></td>
       <td><input class="editable-input" value="${escapeHtml(loc["Class"])}" onchange="updateLocationField(${idx}, 'Class', this.value)"></td>
@@ -791,6 +874,46 @@ function renderLocationList() {
     `;
     tbody.appendChild(tr);
   });
+
+  updateLocSelectionUI();
+}
+
+function toggleSelectLocation(idx, isChecked) {
+  if (isChecked) selectedLocIndices.add(idx);
+  else selectedLocIndices.delete(idx);
+  updateLocSelectionUI();
+}
+
+function toggleSelectAllLocations(isChecked) {
+  if (isChecked) {
+    locationDirectory.forEach((_, idx) => selectedLocIndices.add(idx));
+  } else {
+    selectedLocIndices.clear();
+  }
+  renderLocationList();
+}
+
+function updateLocSelectionUI() {
+  const btnDeleteSelected = document.getElementById('btnDeleteSelectedRooms');
+  const countSpan = document.getElementById('locSelectedCount');
+  const selectAllBox = document.getElementById('selectAllLocations');
+
+  countSpan.innerText = selectedLocIndices.size;
+  btnDeleteSelected.style.display = selectedLocIndices.size > 0 ? 'inline-flex' : 'none';
+
+  if (selectAllBox) {
+    selectAllBox.checked = locationDirectory.length > 0 && selectedLocIndices.size === locationDirectory.length;
+  }
+}
+
+async function deleteSelectedLocations() {
+  if (selectedLocIndices.size === 0) return;
+  if (!confirm(`Delete ${selectedLocIndices.size} selected room location(s) from cloud?`)) return;
+
+  locationDirectory = locationDirectory.filter((_, idx) => !selectedLocIndices.has(idx));
+  selectedLocIndices.clear();
+  await saveLocationsCloud();
+  renderLocationList();
 }
 
 async function saveLocationsCloud() {
@@ -833,6 +956,7 @@ async function updateLocationField(index, field, value) {
 async function deleteLocation(index) {
   if (confirm(`Remove room ${locationDirectory[index]["Room No."]} (${locationDirectory[index]["Teacher"]})?`)) {
     locationDirectory.splice(index, 1);
+    selectedLocIndices.delete(index);
     await saveLocationsCloud();
     renderLocationList();
   }
@@ -841,6 +965,7 @@ async function deleteLocation(index) {
 async function resetLocationsToDefault() {
   if (confirm("Reset the location directory back to the original spreadsheet data? Any custom rooms you added will be removed.")) {
     locationDirectory = JSON.parse(JSON.stringify(defaultLocationDirectory));
+    selectedLocIndices.clear();
     await saveLocationsCloud();
     renderLocationList();
   }
