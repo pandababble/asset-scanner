@@ -10,7 +10,7 @@
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="theme-color" content="#1976d2">
 
-  <title>Asset Tag Scanner & CSV Staging Sync</title>
+  <title>Asset Tag Scanner & CSV Manager</title>
 
   <!-- Firebase Modular Scripts -->
   <script type="module">
@@ -68,7 +68,6 @@
       font-size: clamp(0.85rem, 1vw + 0.5rem, 0.95rem);
     }
 
-    /* Tab Navigation Bar */
     .tab-bar {
       display: flex;
       gap: 6px;
@@ -224,11 +223,11 @@
       display: flex; 
       flex-wrap: wrap; 
       gap: 8px; 
-      flex: 1 1 320px; 
+      flex: 1 1 360px; 
       align-items: center;
     }
     .filter-group input { flex: 1 1 160px; }
-    .filter-group select { flex: 1 1 150px; background: #ffffff; }
+    .filter-group select { flex: 1 1 160px; background: #ffffff; }
     .filter-group button { flex: 0 1 auto; width: auto; padding: 0 14px; }
     
     .btn-group { 
@@ -388,7 +387,6 @@
 
   <!-- TAB 1: LIVE SCANNER -->
   <div id="tabScanner" class="tab-content active">
-    <!-- Top Configuration: Dynamic iiQ Campus & Room Selection -->
     <div class="card">
       <div class="grid-form">
         <div class="form-group">
@@ -486,28 +484,45 @@
   <div id="tabCsv" class="tab-content">
     <div class="card">
       <div class="file-dropzone" onclick="document.getElementById('csvFileInput').click()">
-        <strong>Click or Drop CSV File Here</strong> (e.g. <code>asset_inventory_2026-10-13.csv</code>)
+        <strong>Click or Drop CSV File Here</strong> (e.g. <code>asset_inventory_2026-10-13 (1).csv</code>)
         <input type="file" id="csvFileInput" accept=".csv" style="display:none;" onchange="handleCsvUpload(event)">
       </div>
       <div id="csvFileStatus" class="status-msg"></div>
     </div>
 
-    <!-- CSV Staging Controls & Push to iiQ -->
+    <!-- Dynamic Field Filter Controls for CSV -->
     <div class="card">
       <div class="actions-bar">
         <div class="filter-group">
-          <input type="text" id="csvSearchInput" placeholder="Filter CSV rows..." oninput="renderCsvTable()">
+          <!-- Dropdown 1: Select which field to filter by -->
+          <select id="csvFilterField" onchange="onCsvFilterFieldChanged()" style="flex:1 1 150px;">
+            <option value="">-- Filter by Field --</option>
+            <option value="roomNo">Room No.</option>
+            <option value="teacher">Teacher</option>
+            <option value="className">Class</option>
+            <option value="cartAssetTag">Cart Asset Tag</option>
+            <option value="pushStatus">Sync Status</option>
+            <option value="assetTag">Asset Tag</option>
+          </select>
+
+          <!-- Dropdown 2: Dynamic values for the selected field -->
+          <select id="csvFilterValue" onchange="renderCsvTable()" style="flex:1 1 180px;">
+            <option value="">All Values</option>
+          </select>
+
+          <input type="text" id="csvSearchInput" placeholder="Quick search..." oninput="renderCsvTable()" style="flex:1 1 150px;">
           <button class="btn-secondary" onclick="clearCsvFilter()">Clear</button>
         </div>
+
         <div class="btn-group">
           <button class="btn-primary" onclick="importCsvToLiveInventory()">Import Checked to Live Scanner</button>
           <button class="btn-danger" onclick="clearCsvStaging()">Clear CSV Table</button>
         </div>
       </div>
 
-      <!-- CSV Mass Update Bar -->
+      <!-- CSV Push Bar -->
       <div id="csvMassUpdateBar" class="mass-bar" style="display:flex;">
-        <strong style="white-space: nowrap;">Push to iiQ (<span id="csvSelectedCount">0</span> selected):</strong>
+        <strong style="white-space: nowrap;">Target iiQ Location (<span id="csvSelectedCount">0</span> selected):</strong>
         <select id="csvMassCampusVal" onchange="onCsvMassLocationChanged()" style="flex:1 1 180px;">
           <option value="">-- Choose iiQ Location --</option>
         </select>
@@ -529,8 +544,8 @@
             <th class="resizable" style="width: 160px;">Teacher<div class="resizer"></div></th>
             <th class="resizable" style="width: 130px;">Class<div class="resizer"></div></th>
             <th class="resizable" style="width: 130px;">Cart Asset Tag<div class="resizer"></div></th>
-            <th class="resizable" style="width: 140px;">iiQ AssetId<div class="resizer"></div></th>
-            <th class="resizable" style="width: 180px;">Notes / Push Status<div class="resizer"></div></th>
+            <th class="resizable" style="width: 150px;">iiQ AssetId<div class="resizer"></div></th>
+            <th class="resizable" style="width: 180px;">Push Status<div class="resizer"></div></th>
           </tr>
         </thead>
         <tbody id="csvBody">
@@ -568,7 +583,6 @@ let isCloudReady = false;
 let csvRecords = [];
 let selectedCsvIndices = new Set();
 
-// Tab Switcher
 function switchTab(tabId) {
   document.getElementById('tabScanner').classList.toggle('active', tabId === 'scanner');
   document.getElementById('tabCsv').classList.toggle('active', tabId === 'csv');
@@ -1137,7 +1151,7 @@ async function confirmAndPushSelectedToIiq() {
 
       btn.innerText = "Syncing to iiQ...";
 
-      await fetch(IIQ_WORKER_PROXY_URL, {
+      const res = await fetch(IIQ_WORKER_PROXY_URL, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -1147,6 +1161,11 @@ async function confirmAndPushSelectedToIiq() {
           roomId: rSel.value
         })
       });
+      const result = await res.json();
+
+      if (!res.ok) {
+        throw new Error(result.Message || result.error || "iiQ rejected request");
+      }
 
       const batch = window.fs.writeBatch(window.db);
       validRecords.forEach(rec => {
@@ -1171,7 +1190,7 @@ async function confirmAndPushSelectedToIiq() {
 
       btn.innerText = "Syncing to iiQ...";
 
-      await fetch(IIQ_WORKER_PROXY_URL, {
+      const res = await fetch(IIQ_WORKER_PROXY_URL, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -1180,6 +1199,11 @@ async function confirmAndPushSelectedToIiq() {
           statusName: targetStatus
         })
       });
+      const result = await res.json();
+
+      if (!res.ok) {
+        throw new Error(result.Message || result.error || "iiQ rejected request");
+      }
 
       const batch = window.fs.writeBatch(window.db);
       validRecords.forEach(rec => {
@@ -1271,7 +1295,7 @@ function exportData(format) {
 }
 
 // ==========================================
-// CSV PARSER, STAGING & IIQ LOCATION SYNC
+// CSV PARSER, FILTERING & IIQ LOCATION SYNC
 // ==========================================
 function parseCsv(text) {
   const lines = text.split(/\r?\n/).filter(line => line.trim().length > 0);
@@ -1341,10 +1365,11 @@ async function handleCsvUpload(event) {
       pushStatus: 'Pending Lookup'
     }));
 
-    selectedCsvIndices = new Set(csvRecords.map((_, i) => i)); // select all by default
+    selectedCsvIndices = new Set(csvRecords.map((_, i) => i));
     document.getElementById('csvCountBadge').innerText = csvRecords.length;
-    statusEl.innerHTML = `<span class="status-ok">Loaded ${csvRecords.length} records from ${file.name}. Linking iiQ Asset IDs in background...</span>`;
+    statusEl.innerHTML = `<span class="status-ok">Loaded ${csvRecords.length} records. Resolving iiQ Asset IDs in background...</span>`;
     
+    populateCsvFilterValues();
     renderCsvTable();
     await autoLinkCsvAssetIds();
   };
@@ -1373,25 +1398,65 @@ async function autoLinkCsvAssetIds() {
     renderCsvTable();
   }
 
-  statusEl.innerHTML = `<span class="status-ok">Completed iiQ ID resolution. ${linkedCount} of ${csvRecords.length} assets ready to push!</span>`;
+  statusEl.innerHTML = `<span class="status-ok">Linked ${linkedCount} of ${csvRecords.length} assets with iiQ!</span>`;
+  populateCsvFilterValues();
+}
+
+// Populate the second dropdown dynamically based on the chosen field
+function onCsvFilterFieldChanged() {
+  populateCsvFilterValues();
+  renderCsvTable();
+}
+
+function populateCsvFilterValues() {
+  const field = document.getElementById('csvFilterField').value;
+  const valSelect = document.getElementById('csvFilterValue');
+  valSelect.innerHTML = '<option value="">All Values</option>';
+
+  if (!field || csvRecords.length === 0) return;
+
+  const valueCounts = {};
+  csvRecords.forEach(row => {
+    const v = (row[field] || 'Blank/Unassigned').trim();
+    valueCounts[v] = (valueCounts[v] || 0) + 1;
+  });
+
+  const sortedValues = Object.keys(valueCounts).sort();
+  sortedValues.forEach(val => {
+    valSelect.add(new Option(`${val} (${valueCounts[val]})`, val));
+  });
+}
+
+function getFilteredCsvData() {
+  const field = document.getElementById('csvFilterField').value;
+  const filterVal = document.getElementById('csvFilterValue').value.trim();
+  const query = document.getElementById('csvSearchInput').value.trim().toLowerCase();
+
+  return csvRecords.filter(row => {
+    if (field && filterVal) {
+      const cellVal = (row[field] || 'Blank/Unassigned').trim();
+      if (cellVal !== filterVal) return false;
+    }
+    if (query) {
+      const match = (
+        (row.assetTag && row.assetTag.toLowerCase().includes(query)) ||
+        (row.roomNo && row.roomNo.toLowerCase().includes(query)) ||
+        (row.teacher && row.teacher.toLowerCase().includes(query)) ||
+        (row.className && row.className.toLowerCase().includes(query)) ||
+        (row.cartAssetTag && row.cartAssetTag.toLowerCase().includes(query)) ||
+        (row.pushStatus && row.pushStatus.toLowerCase().includes(query))
+      );
+      if (!match) return false;
+    }
+    return true;
+  });
 }
 
 function renderCsvTable() {
   const tbody = document.getElementById('csvBody');
-  const query = document.getElementById('csvSearchInput').value.trim().toLowerCase();
   tbody.innerHTML = '';
 
-  const filtered = csvRecords.filter(row => {
-    if (!query) return true;
-    return (
-      (row.assetTag && row.assetTag.toLowerCase().includes(query)) ||
-      (row.roomNo && row.roomNo.toLowerCase().includes(query)) ||
-      (row.teacher && row.teacher.toLowerCase().includes(query)) ||
-      (row.className && row.className.toLowerCase().includes(query)) ||
-      (row.cartAssetTag && row.cartAssetTag.toLowerCase().includes(query)) ||
-      (row.pushStatus && row.pushStatus.toLowerCase().includes(query))
-    );
-  });
+  const filtered = getFilteredCsvData();
 
   if (filtered.length === 0) {
     tbody.innerHTML = `<tr><td colspan="8" style="text-align:center; padding: 20px; color: var(--text-muted);">No matching CSV records.</td></tr>`;
@@ -1432,23 +1497,27 @@ function toggleSelectCsv(index, isChecked) {
 }
 
 function toggleSelectAllCsv(isChecked) {
+  const currentFiltered = getFilteredCsvData();
   if (isChecked) {
-    csvRecords.forEach((_, i) => selectedCsvIndices.add(i));
+    currentFiltered.forEach(r => selectedCsvIndices.add(r.index));
   } else {
-    selectedCsvIndices.clear();
+    currentFiltered.forEach(r => selectedCsvIndices.delete(r.index));
   }
   renderCsvTable();
 }
 
 function updateCsvSelectionUI() {
   document.getElementById('csvSelectedCount').innerText = selectedCsvIndices.size;
+  const currentFiltered = getFilteredCsvData();
   const selectAll = document.getElementById('selectAllCsv');
   if (selectAll) {
-    selectAll.checked = csvRecords.length > 0 && selectedCsvIndices.size === csvRecords.length;
+    selectAll.checked = currentFiltered.length > 0 && currentFiltered.every(r => selectedCsvIndices.has(r.index));
   }
 }
 
 function clearCsvFilter() {
+  document.getElementById('csvFilterField').value = '';
+  document.getElementById('csvFilterValue').innerHTML = '<option value="">All Values</option>';
   document.getElementById('csvSearchInput').value = '';
   renderCsvTable();
 }
@@ -1460,10 +1529,11 @@ function clearCsvStaging() {
   document.getElementById('csvCountBadge').innerText = '0';
   document.getElementById('csvFileStatus').innerHTML = '';
   document.getElementById('csvFileInput').value = '';
+  clearCsvFilter();
   renderCsvTable();
 }
 
-// Push CSV Selection to Incident IQ Location & Room
+// Push CSV Selection to Incident IQ Location & Room with On-Demand ID Resolution
 async function confirmAndPushCsvToIiq() {
   if (selectedCsvIndices.size === 0) {
     alert("Please select rows in the CSV table to update.");
@@ -1479,27 +1549,44 @@ async function confirmAndPushCsvToIiq() {
   }
 
   const selectedRows = csvRecords.filter(r => selectedCsvIndices.has(r.index));
-  const validRows = selectedRows.filter(r => Boolean(r.assetId));
-  const validAssetIds = validRows.map(r => r.assetId);
-
-  if (validAssetIds.length === 0) {
-    alert("None of the selected CSV records have resolved AssetIds from Incident IQ. Please wait for background lookup to finish.");
-    return;
-  }
-
-  const cName = cSel.options[cSel.selectedIndex].text;
-  const rName = rSel.options[rSel.selectedIndex].text;
-
-  const confirmMsg = `Push ${validAssetIds.length} asset(s) from CSV to Incident IQ?\n\nTarget Location: ${cName} - ${rName}`;
-  if (!confirm(confirmMsg)) return;
-
   const btn = document.getElementById('btnPushCsvIiq');
   const prevText = btn.innerText;
-  btn.innerText = "Syncing to iiQ...";
+
+  btn.innerText = "Verifying Asset IDs...";
   btn.disabled = true;
 
   try {
-    await fetch(IIQ_WORKER_PROXY_URL, {
+    // 1. Resolve any unlinked rows immediately
+    const missingRows = selectedRows.filter(r => !r.assetId);
+    if (missingRows.length > 0) {
+      btn.innerText = `Fetching ${missingRows.length} iiQ IDs...`;
+      await Promise.all(missingRows.map(async (row) => {
+        if (!row.assetTag) return;
+        const details = await fetchIiqAssetDetails({ assetTag: row.assetTag });
+        if (details && details.assetId) {
+          row.assetId = details.assetId;
+          row.pushStatus = 'Ready to Push';
+        }
+      }));
+    }
+
+    const validRows = selectedRows.filter(r => Boolean(r.assetId));
+    const validAssetIds = validRows.map(r => r.assetId);
+
+    if (validAssetIds.length === 0) {
+      alert("None of the selected CSV records could be matched to an Asset in Incident IQ. Check that asset tags exist in iiQ.");
+      return;
+    }
+
+    const cName = cSel.options[cSel.selectedIndex].text;
+    const rName = rSel.options[rSel.selectedIndex].text;
+
+    const confirmMsg = `Push ${validAssetIds.length} asset(s) to Incident IQ?\n\nTarget Location: ${cName} - ${rName}`;
+    if (!confirm(confirmMsg)) return;
+
+    btn.innerText = "Syncing to iiQ...";
+
+    const res = await fetch(IIQ_WORKER_PROXY_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -1510,6 +1597,11 @@ async function confirmAndPushCsvToIiq() {
       })
     });
 
+    const result = await res.json();
+    if (!res.ok) {
+      throw new Error(result.Message || result.error || "iiQ returned an error");
+    }
+
     validRows.forEach(row => {
       row.roomNo = rName;
       row.pushStatus = `Synced (${rName})`;
@@ -1517,6 +1609,7 @@ async function confirmAndPushCsvToIiq() {
 
     renderCsvTable();
     alert(`Successfully updated location for ${validAssetIds.length} device(s) in Incident IQ!`);
+
   } catch (e) {
     alert(`iiQ Push Error: ${e.message}`);
   } finally {
@@ -1525,7 +1618,6 @@ async function confirmAndPushCsvToIiq() {
   }
 }
 
-// Option to merge selected CSV rows directly into live Firestore inventory
 async function importCsvToLiveInventory() {
   if (selectedCsvIndices.size === 0 || !isCloudReady) {
     alert("Please select rows to import into the live database.");
