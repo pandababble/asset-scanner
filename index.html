@@ -494,7 +494,6 @@
     <div class="card">
       <div class="actions-bar">
         <div class="filter-group">
-          <!-- Dropdown 1: Field Select -->
           <select id="csvFilterField" onchange="onCsvFilterFieldChanged()" style="flex:1 1 150px;">
             <option value="">-- Filter by Field --</option>
             <option value="teacher">Teacher</option>
@@ -505,7 +504,6 @@
             <option value="assetTag">Asset Tag</option>
           </select>
 
-          <!-- Dropdown 2: Dynamic Values -->
           <select id="csvFilterValue" onchange="onCsvFilterValueChanged()" style="flex:1 1 180px;">
             <option value="">All Values</option>
           </select>
@@ -587,7 +585,6 @@ let inventory = [];
 let selectedDocIds = new Set();
 let isCloudReady = false;
 
-// CSV Staging state
 let csvRecords = [];
 let selectedCsvIndices = new Set();
 
@@ -693,7 +690,7 @@ async function onLocationChanged() {
     rooms.forEach(r => {
       const roomName = r.Name || r.RoomNumber || r.Number;
       const desc = r.Description ? ` (${r.Description})` : '';
-      const roomId = r.RoomId || r.Id;
+      const roomId = r.LocationRoomId || r.RoomId || r.Id;
       roomSelect.add(new Option(`${roomName}${desc}`, roomId));
     });
 
@@ -729,7 +726,7 @@ async function onMassLocationChanged() {
   rooms.forEach(r => {
     const roomName = r.Name || r.RoomNumber || r.Number;
     const desc = r.Description ? ` (${r.Description})` : '';
-    const roomId = r.RoomId || r.Id;
+    const roomId = r.LocationRoomId || r.RoomId || r.Id;
     roomSelect.add(new Option(`${roomName}${desc}`, roomId));
   });
 }
@@ -760,7 +757,7 @@ async function onCsvMassLocationChanged() {
   rooms.forEach(r => {
     const roomName = r.Name || r.RoomNumber || r.Number;
     const desc = r.Description ? ` (${r.Description})` : '';
-    const roomId = r.RoomId || r.Id;
+    const roomId = r.LocationRoomId || r.RoomId || r.Id;
     roomSelect.add(new Option(`${roomName}${desc}`, roomId));
   });
 }
@@ -868,7 +865,7 @@ async function fetchIiqAssetDetails(query) {
         status: (a.Status && a.Status.Name) || a.StatusName || "In Service",
         statusTypeId: a.StatusTypeId || (a.Status && a.Status.StatusTypeId) || "",
         locationId: a.LocationId || "",
-        roomId: a.RoomId || ""
+        roomId: a.LocationRoomId || a.RoomId || ""
       };
     }
   } catch (err) {
