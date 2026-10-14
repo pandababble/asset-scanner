@@ -421,7 +421,7 @@
       </div>
 
       <div class="form-group">
-        <button class="btn-primary" onclick="handleScanSubmit()">Add / Record</button>
+        <button class="btn-primary" onclick="triggerScan()">Add / Record</button>
       </div>
     </div>
     <div id="scanFeedback" class="status-msg"></div>
@@ -707,23 +707,33 @@ function syncLocationDetails() {
   }
 }
 
+// Anti-duplicate input handlers for Bluetooth Scanners
 const scanInput = document.getElementById('scanInput');
-let scanTimer = null;
-
-scanInput.addEventListener('input', (e) => {
-  const val = e.target.value.trim();
-  if (/^\d{6}$/.test(val)) {
-    clearTimeout(scanTimer);
-    handleScanSubmit();
-  }
-});
+let isProcessingScan = false;
 
 scanInput.addEventListener('keydown', (e) => {
   if (e.key === 'Enter') {
     e.preventDefault();
-    handleScanSubmit();
+    triggerScan();
   }
 });
+
+scanInput.addEventListener('input', (e) => {
+  const val = e.target.value.trim();
+  if (/^\d{6}$/.test(val)) {
+    triggerScan();
+  }
+});
+
+function triggerScan() {
+  if (isProcessingScan) return;
+  isProcessingScan = true;
+  handleScanSubmit().finally(() => {
+    setTimeout(() => {
+      isProcessingScan = false;
+    }, 350);
+  });
+}
 
 // Queries Incident IQ through your Cloudflare Worker relay
 async function fetchIiqAssetDetails(assetTag) {
@@ -1095,7 +1105,6 @@ async function resetLocationsToDefault() {
 }
 
 function exportData(format) {
-  // Determine dataset: Selected items take highest priority, then filtered items, then all items
   let targetData = [];
   if (selectedDocIds.size > 0) {
     targetData = inventory.filter(item => selectedDocIds.has(item.id));
