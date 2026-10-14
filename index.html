@@ -494,23 +494,23 @@
     <div class="card">
       <div class="actions-bar">
         <div class="filter-group">
-          <!-- Dropdown 1: Select which field to filter by -->
+          <!-- Dropdown 1: Field Select -->
           <select id="csvFilterField" onchange="onCsvFilterFieldChanged()" style="flex:1 1 150px;">
             <option value="">-- Filter by Field --</option>
-            <option value="roomNo">Room No.</option>
             <option value="teacher">Teacher</option>
+            <option value="roomNo">Room No.</option>
             <option value="className">Class</option>
             <option value="cartAssetTag">Cart Asset Tag</option>
             <option value="pushStatus">Sync Status</option>
             <option value="assetTag">Asset Tag</option>
           </select>
 
-          <!-- Dropdown 2: Dynamic values for the selected field -->
-          <select id="csvFilterValue" onchange="renderCsvTable()" style="flex:1 1 180px;">
+          <!-- Dropdown 2: Value Select -->
+          <select id="csvFilterValue" onchange="onCsvFilterValueChanged()" style="flex:1 1 180px;">
             <option value="">All Values</option>
           </select>
 
-          <input type="text" id="csvSearchInput" placeholder="Quick search..." oninput="renderCsvTable()" style="flex:1 1 150px;">
+          <input type="text" id="csvSearchInput" placeholder="Quick search..." oninput="onCsvSearchChanged()" style="flex:1 1 150px;">
           <button class="btn-secondary" onclick="clearCsvFilter()">Clear</button>
         </div>
 
@@ -520,16 +520,24 @@
         </div>
       </div>
 
-      <!-- CSV Push Bar -->
+      <!-- CSV Push Bar with Location & Status Toggle -->
       <div id="csvMassUpdateBar" class="mass-bar" style="display:flex;">
-        <strong style="white-space: nowrap;">Target iiQ Location (<span id="csvSelectedCount">0</span> selected):</strong>
+        <strong style="white-space: nowrap;">Target iiQ Update (<span id="csvSelectedCount">0</span> selected):</strong>
+        <select id="csvUpdateMode" onchange="toggleCsvUpdateMode()" style="flex:0 1 150px;">
+          <option value="location">Location & Room</option>
+          <option value="status">Status</option>
+        </select>
+
         <select id="csvMassCampusVal" onchange="onCsvMassLocationChanged()" style="flex:1 1 180px;">
           <option value="">-- Choose iiQ Location --</option>
         </select>
         <select id="csvMassRoomVal" style="flex:1 1 180px;">
           <option value="">-- Choose iiQ Room --</option>
         </select>
-        <button class="btn-success" id="btnPushCsvIiq" onclick="confirmAndPushCsvToIiq()">Push Location to iiQ</button>
+
+        <select id="csvMassStatusVal" style="flex:1 1 180px; display:none;"></select>
+
+        <button class="btn-success" id="btnPushCsvIiq" onclick="confirmAndPushCsvToIiq()">Push to iiQ</button>
       </div>
     </div>
 
@@ -757,11 +765,24 @@ async function onCsvMassLocationChanged() {
   });
 }
 
+function toggleCsvUpdateMode() {
+  const mode = document.getElementById('csvUpdateMode').value;
+  const isLoc = (mode === 'location');
+  document.getElementById('csvMassCampusVal').style.display = isLoc ? 'inline-block' : 'none';
+  document.getElementById('csvMassRoomVal').style.display = isLoc ? 'inline-block' : 'none';
+  document.getElementById('csvMassStatusVal').style.display = isLoc ? 'none' : 'inline-block';
+}
+
 function initStatusDropdowns() {
   const massStatusVal = document.getElementById('massStatusVal');
+  const csvMassStatusVal = document.getElementById('csvMassStatusVal');
+  
   massStatusVal.innerHTML = '<option value="">-- Choose Status --</option>';
+  csvMassStatusVal.innerHTML = '<option value="">-- Choose Status --</option>';
+  
   IIQ_STATUS_LIST.forEach(st => {
     massStatusVal.add(new Option(st, st));
+    csvMassStatusVal.add(new Option(st, st));
   });
 }
 
@@ -1376,7 +1397,6 @@ async function handleCsvUpload(event) {
   reader.readAsText(file);
 }
 
-// Background Asset ID Resolver for Staged CSV
 async function autoLinkCsvAssetIds() {
   const chunkSize = 8;
   const statusEl = document.getElementById('csvFileStatus');
@@ -1402,10 +1422,25 @@ async function autoLinkCsvAssetIds() {
   populateCsvFilterValues();
 }
 
-// Populate the second dropdown dynamically based on the chosen field
 function onCsvFilterFieldChanged() {
   populateCsvFilterValues();
+  syncSelectionToFilter();
   renderCsvTable();
+}
+
+function onCsvFilterValueChanged() {
+  syncSelectionToFilter();
+  renderCsvTable();
+}
+
+function onCsvSearchChanged() {
+  syncSelectionToFilter();
+  renderCsvTable();
+}
+
+function syncSelectionToFilter() {
+  const filtered = getFilteredCsvData();
+  selectedCsvIndices = new Set(filtered.map(r => r.index));
 }
 
 function populateCsvFilterValues() {
@@ -1460,6 +1495,7 @@ function renderCsvTable() {
 
   if (filtered.length === 0) {
     tbody.innerHTML = `<tr><td colspan="8" style="text-align:center; padding: 20px; color: var(--text-muted);">No matching CSV records.</td></tr>`;
+    updateCsvSelectionUI();
     return;
   }
 
@@ -1507,8 +1543,10 @@ function toggleSelectAllCsv(isChecked) {
 }
 
 function updateCsvSelectionUI() {
-  document.getElementById('csvSelectedCount').innerText = selectedCsvIndices.size;
   const currentFiltered = getFilteredCsvData();
+  const visibleSelectedCount = currentFiltered.filter(r => selectedCsvIndices.has(r.index)).length;
+  document.getElementById('csvSelectedCount').innerText = visibleSelectedCount;
+
   const selectAll = document.getElementById('selectAllCsv');
   if (selectAll) {
     selectAll.checked = currentFiltered.length > 0 && currentFiltered.every(r => selectedCsvIndices.has(r.index));
@@ -1519,6 +1557,7 @@ function clearCsvFilter() {
   document.getElementById('csvFilterField').value = '';
   document.getElementById('csvFilterValue').innerHTML = '<option value="">All Values</option>';
   document.getElementById('csvSearchInput').value = '';
+  selectedCsvIndices = new Set(csvRecords.map((_, i) => i));
   renderCsvTable();
 }
 
@@ -1533,22 +1572,17 @@ function clearCsvStaging() {
   renderCsvTable();
 }
 
-// Push CSV Selection to Incident IQ Location & Room with On-Demand ID Resolution
+// Push CSV Selection to Incident IQ (Location or Status)
 async function confirmAndPushCsvToIiq() {
-  if (selectedCsvIndices.size === 0) {
+  const currentFiltered = getFilteredCsvData();
+  const targetRows = currentFiltered.filter(r => selectedCsvIndices.has(r.index));
+
+  if (targetRows.length === 0) {
     alert("Please select rows in the CSV table to update.");
     return;
   }
 
-  const cSel = document.getElementById('csvMassCampusVal');
-  const rSel = document.getElementById('csvMassRoomVal');
-
-  if (!cSel.value || !rSel.value) {
-    alert("Please choose both an iiQ Campus/Location and Target Room.");
-    return;
-  }
-
-  const selectedRows = csvRecords.filter(r => selectedCsvIndices.has(r.index));
+  const mode = document.getElementById('csvUpdateMode').value;
   const btn = document.getElementById('btnPushCsvIiq');
   const prevText = btn.innerText;
 
@@ -1556,8 +1590,7 @@ async function confirmAndPushCsvToIiq() {
   btn.disabled = true;
 
   try {
-    // 1. Resolve any unlinked rows immediately
-    const missingRows = selectedRows.filter(r => !r.assetId);
+    const missingRows = targetRows.filter(r => !r.assetId);
     if (missingRows.length > 0) {
       btn.innerText = `Fetching ${missingRows.length} iiQ IDs...`;
       await Promise.all(missingRows.map(async (row) => {
@@ -1570,7 +1603,7 @@ async function confirmAndPushCsvToIiq() {
       }));
     }
 
-    const validRows = selectedRows.filter(r => Boolean(r.assetId));
+    const validRows = targetRows.filter(r => Boolean(r.assetId));
     const validAssetIds = validRows.map(r => r.assetId);
 
     if (validAssetIds.length === 0) {
@@ -1578,37 +1611,78 @@ async function confirmAndPushCsvToIiq() {
       return;
     }
 
-    const cName = cSel.options[cSel.selectedIndex].text;
-    const rName = rSel.options[rSel.selectedIndex].text;
+    if (mode === 'location') {
+      const cSel = document.getElementById('csvMassCampusVal');
+      const rSel = document.getElementById('csvMassRoomVal');
 
-    const confirmMsg = `Push ${validAssetIds.length} asset(s) to Incident IQ?\n\nTarget Location: ${cName} - ${rName}`;
-    if (!confirm(confirmMsg)) return;
+      if (!cSel.value || !rSel.value) {
+        alert("Please choose both an iiQ Campus/Location and Target Room.");
+        return;
+      }
 
-    btn.innerText = "Syncing to iiQ...";
+      const cName = cSel.options[cSel.selectedIndex].text;
+      const rName = rSel.options[rSel.selectedIndex].text;
 
-    const res = await fetch(IIQ_WORKER_PROXY_URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        action: "bulkUpdateLocation",
-        assetIds: validAssetIds,
-        locationId: cSel.value,
-        roomId: rSel.value
-      })
-    });
+      const confirmMsg = `Push ${validAssetIds.length} asset(s) to Incident IQ?\n\nTarget Location: ${cName} - ${rName}`;
+      if (!confirm(confirmMsg)) return;
 
-    const result = await res.json();
-    if (!res.ok) {
-      throw new Error(result.Message || result.error || "iiQ returned an error");
+      btn.innerText = "Syncing to iiQ...";
+
+      const res = await fetch(IIQ_WORKER_PROXY_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "bulkUpdateLocation",
+          assetIds: validAssetIds,
+          locationId: cSel.value,
+          roomId: rSel.value
+        })
+      });
+
+      const result = await res.json();
+      if (!res.ok) {
+        throw new Error(result.Message || result.error || "iiQ returned an error");
+      }
+
+      validRows.forEach(row => {
+        row.roomNo = rName;
+        row.pushStatus = `Synced (${rName})`;
+      });
+
+      renderCsvTable();
+      alert(`Successfully updated location for ${validAssetIds.length} device(s) in Incident IQ!`);
+
+    } else if (mode === 'status') {
+      const sSel = document.getElementById('csvMassStatusVal');
+      const targetStatus = sSel.value || "In Service";
+
+      const confirmMsg = `Push ${validAssetIds.length} asset(s) to Incident IQ?\n\nTarget Status: "${targetStatus}"`;
+      if (!confirm(confirmMsg)) return;
+
+      btn.innerText = "Syncing to iiQ...";
+
+      const res = await fetch(IIQ_WORKER_PROXY_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "bulkUpdateStatus",
+          assetIds: validAssetIds,
+          statusName: targetStatus
+        })
+      });
+
+      const result = await res.json();
+      if (!res.ok) {
+        throw new Error(result.Message || result.error || "iiQ returned an error");
+      }
+
+      validRows.forEach(row => {
+        row.pushStatus = `Synced (${targetStatus})`;
+      });
+
+      renderCsvTable();
+      alert(`Successfully updated status for ${validAssetIds.length} device(s) in Incident IQ!`);
     }
-
-    validRows.forEach(row => {
-      row.roomNo = rName;
-      row.pushStatus = `Synced (${rName})`;
-    });
-
-    renderCsvTable();
-    alert(`Successfully updated location for ${validAssetIds.length} device(s) in Incident IQ!`);
 
   } catch (e) {
     alert(`iiQ Push Error: ${e.message}`);
@@ -1619,12 +1693,14 @@ async function confirmAndPushCsvToIiq() {
 }
 
 async function importCsvToLiveInventory() {
-  if (selectedCsvIndices.size === 0 || !isCloudReady) {
+  const currentFiltered = getFilteredCsvData();
+  const selectedRows = currentFiltered.filter(r => selectedCsvIndices.has(r.index));
+
+  if (selectedRows.length === 0 || !isCloudReady) {
     alert("Please select rows to import into the live database.");
     return;
   }
 
-  const selectedRows = csvRecords.filter(r => selectedCsvIndices.has(r.index));
   if (!confirm(`Import ${selectedRows.length} record(s) into Live Scanner repository?`)) return;
 
   const batch = window.fs.writeBatch(window.db);
