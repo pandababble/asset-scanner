@@ -11,7 +11,7 @@
   <meta name="theme-color" content="#1976d2">
   <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='20' fill='%231976d2'/%3E%3Cpath d='M25 35h10v30H25zm15 0h6v30h-6zm10 0h14v30H50zm18 0h7v30h-7zm11 0h6v30h-6z' fill='white'/%3E%3C/svg%3E">
 
-  <title>Asset Tag Scanner & Live Inventory</title>
+  <title>Asset Tag Scanner & Live iiQ Sync</title>
 
   <!-- Firebase Modular Scripts -->
   <script type="module">
@@ -122,7 +122,7 @@
 
     .grid-form { 
       display: grid; 
-      grid-template-columns: repeat(auto-fit, minmax(clamp(150px, 18vw, 220px), 1fr)); 
+      grid-template-columns: repeat(auto-fit, minmax(clamp(140px, 16vw, 200px), 1fr)); 
       gap: clamp(8px, 1.2vw, 12px); 
       align-items: end; 
     }
@@ -182,7 +182,6 @@
     .btn-secondary { background: #eceff1; color: #37474f; border: 1px solid var(--border); }
     .btn-secondary:hover { background: #cfd8dc; }
 
-    /* Actions Bar */
     .actions-bar { 
       display: flex; 
       flex-wrap: wrap; 
@@ -235,7 +234,7 @@
     table { 
       width: 100%; 
       border-collapse: collapse; 
-      min-width: 800px; 
+      min-width: 1050px; 
       font-size: clamp(0.8rem, 1vw, 0.9rem); 
     }
     th, td { 
@@ -348,15 +347,8 @@
       flex: 0 0 auto;
       min-width: 120px;
     }
-    .loc-inputs-row input {
-      height: 38px;
-      font-size: 0.9rem;
-    }
-    .loc-inputs-row button {
-      height: 38px;
-      font-size: 0.9rem;
-      padding: 0 16px;
-    }
+    .loc-inputs-row input { height: 38px; font-size: 0.9rem; }
+    .loc-inputs-row button { height: 38px; font-size: 0.9rem; padding: 0 16px; }
 
     .modal-toolbar { 
       display: flex; 
@@ -366,7 +358,6 @@
       flex-wrap: wrap;
       gap: 8px;
     }
-
     .modal-table-wrap {
       max-height: 360px; 
       overflow-y: auto; 
@@ -374,10 +365,7 @@
       border-radius: 6px; 
       -webkit-overflow-scrolling: touch;
     }
-    .modal-table-wrap table {
-      min-width: 100%;
-    }
-
+    .modal-table-wrap table { min-width: 100%; }
     .modal-footer { 
       padding: 12px 16px; 
       border-top: 1px solid var(--border); 
@@ -388,11 +376,7 @@
       flex-wrap: wrap; 
       gap: 8px; 
     }
-    .modal-footer button {
-      flex: 1 1 auto;
-      max-width: 260px;
-      height: 38px;
-    }
+    .modal-footer button { flex: 1 1 auto; max-width: 260px; height: 38px; }
   </style>
 </head>
 <body>
@@ -447,11 +431,10 @@
   <div class="card">
     <div class="actions-bar">
       <div class="filter-group">
-        <!-- Room-Specific Isolation Dropdown -->
         <select id="filterRoomSelect" onchange="renderTable()">
           <option value="">All Rooms</option>
         </select>
-        <input type="text" id="searchInput" placeholder="Search Teacher, Tag, or Note..." oninput="renderTable()">
+        <input type="text" id="searchInput" placeholder="Search Teacher, Tag, Serial, or Model..." oninput="renderTable()">
         <button class="btn-secondary" onclick="clearFilters()">Clear</button>
       </div>
       <div class="btn-group">
@@ -475,19 +458,22 @@
     </div>
   </div>
 
-  <!-- Main Repository Table -->
+  <!-- Main Repository Table with iiQ Columns -->
   <div class="table-container">
     <table>
       <thead>
         <tr>
           <th style="width: 38px; text-align: center;"><input type="checkbox" id="selectAll" onclick="toggleSelectAll(this.checked)"></th>
-          <th style="width: 110px;">Asset Tag</th>
-          <th style="width: 90px;">Room No.</th>
-          <th style="width: 160px;">Teacher</th>
-          <th style="width: 110px;">Class</th>
-          <th style="width: 130px;">Cart Asset Tag</th>
+          <th style="width: 105px;">Asset Tag</th>
+          <th style="width: 130px;">Serial Number</th>
+          <th style="width: 140px;">Model</th>
+          <th style="width: 85px;">Room No.</th>
+          <th style="width: 150px;">Teacher</th>
+          <th style="width: 100px;">Class</th>
+          <th style="width: 120px;">Cart Asset Tag</th>
+          <th style="width: 140px;">iiQ Assignee</th>
           <th>Notes</th>
-          <th style="width: 70px; text-align: center;">Actions</th>
+          <th style="width: 65px; text-align: center;">Actions</th>
         </tr>
       </thead>
       <tbody id="inventoryBody">
@@ -559,6 +545,13 @@
   </div>
 
 <script>
+// Incident IQ Direct Credentials (from your Developer Tools panel)
+const IIQ_CONFIG = {
+  apiUrl: "https://staffordmsd.incidentiq.com/api/v1.0",
+  siteId: "7b856d3c-7c94-4dc9-a9b8-1fc8cbd9c565",
+  token: "eyJhbGciOiJVUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJ3YjFnNmQzYy03Yzk0LTRkYzktYTIiLC0xZmE4Y2JkOWM1NjUiLCJ2Y29wZSI6Imh0dHBzOi8vc3RhZmZvcmRtc2QuaW5jaWRlbnRpcS5jb20iLCJzdWIiOiIwYzdhYjFkMy1iZGRjLTRlOGMtYmEzZC0yNjRlMzM1ZTk3M2YiLCJqdGkiOiI3N2MyYmE4ZC1kOWM3LWYxMTEtYmY1Yi02MDQ1YmRlMDViN2IiLCJleHAiOjE3OTIwOTE1ODcyNjUuNDI3LCJ0eHAiOjE4ODY2ODE2NjUuNDI3fQ.jzLF_LYEYEhOsjtt1f3mMGJ7PB5EGNVaIBQV3xYmcQ"
+};
+
 const defaultLocationDirectory = [
   {"Room No.": "P209", "Class": "LAMPS", "Teacher": "Harris, Brittany"},
   {"Room No.": "E402", "Class": "4th Grade", "Teacher": "Carter, Cynthia"},
@@ -678,7 +671,6 @@ function initDropdowns() {
   }
 }
 
-// Populates the "Filter by Room" dropdown dynamically with counts
 function updateRoomFilterDropdown() {
   const filterSelect = document.getElementById('filterRoomSelect');
   const currentVal = filterSelect.value;
@@ -738,6 +730,45 @@ scanInput.addEventListener('keydown', (e) => {
   }
 });
 
+// Direct fetch to Incident IQ (Endpoint 2-A)
+async function fetchIiqAssetDetails(assetTag) {
+  try {
+    const res = await fetch(`${IIQ_CONFIG.apiUrl}/assets`, {
+      method: "POST",
+      headers: {
+        "Client": "ApiClient",
+        "SiteId": IIQ_CONFIG.siteId,
+        "Authorization": `Bearer ${IIQ_CONFIG.token}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        Filters: [
+          {
+            Facet: "AssetTag",
+            Value: String(assetTag).trim()
+          }
+        ]
+      })
+    });
+
+    if (!res.ok) return null;
+    const json = await res.json();
+
+    const items = json.Items || json.items || (Array.isArray(json) ? json : []);
+    if (items.length > 0) {
+      const a = items[0];
+      return {
+        serialNumber: a.SerialNumber || a.serialNumber || "",
+        model: a.ModelName || (a.Model && a.Model.Name) || "",
+        iiqAssignee: a.User || a.CurrentOwner || (a.Owner && a.Owner.Name) || ""
+      };
+    }
+  } catch (err) {
+    console.warn("Direct iiQ lookup warning:", err.message);
+  }
+  return null;
+}
+
 async function handleScanSubmit() {
   const rawTag = scanInput.value.trim();
   const roomIdx = document.getElementById('roomSelect').value;
@@ -756,10 +787,18 @@ async function handleScanSubmit() {
     return;
   }
 
+  feedback.innerHTML = `<span>Checking Incident IQ for #${rawTag}...</span>`;
+
+  // Query Incident IQ directly
+  const iiqData = await fetchIiqAssetDetails(rawTag);
+
   const loc = locationDirectory[roomIdx];
   const newId = Date.now().toString() + "_" + rawTag;
   const record = {
     assetTag: rawTag,
+    serialNumber: (iiqData && iiqData.serialNumber) ? iiqData.serialNumber : "",
+    model: (iiqData && iiqData.model) ? iiqData.model : "",
+    iiqAssignee: (iiqData && iiqData.iiqAssignee) ? iiqData.iiqAssignee : "",
     roomNo: loc["Room No."],
     teacher: loc["Teacher"],
     className: loc["Class"],
@@ -771,7 +810,8 @@ async function handleScanSubmit() {
   try {
     if (isCloudReady) {
       await window.fs.setDoc(window.fs.doc(window.db, "inventory", newId), record);
-      feedback.innerHTML = `<span class="status-ok">Recorded Asset #${rawTag} &rarr; Room ${loc["Room No."]} (${loc["Teacher"]})</span>`;
+      const iiqInfo = record.serialNumber ? ` [S/N: ${record.serialNumber}]` : '';
+      feedback.innerHTML = `<span class="status-ok">Recorded #${rawTag}${iiqInfo} &rarr; Room ${loc["Room No."]} (${loc["Teacher"]})</span>`;
     } else {
       feedback.innerHTML = `<span class="status-warn">Cloud not connected yet. Check network.</span>`;
     }
@@ -789,22 +829,21 @@ function renderTable() {
   tbody.innerHTML = '';
 
   const filtered = inventory.filter(item => {
-    // 1. Room Isolation Filter
     if (selectedRoomFilter && (item.roomNo || '').trim() !== selectedRoomFilter) {
       return false;
     }
-    // 2. Search Box Filter
     if (query) {
       const matchTeacher = item.teacher && item.teacher.toLowerCase().includes(query);
       const matchRoom = item.roomNo && item.roomNo.toLowerCase().includes(query);
       const matchTag = item.assetTag && item.assetTag.toLowerCase().includes(query);
+      const matchSerial = item.serialNumber && item.serialNumber.toLowerCase().includes(query);
+      const matchModel = item.model && item.model.toLowerCase().includes(query);
       const matchNotes = item.notes && item.notes.toLowerCase().includes(query);
-      if (!matchTeacher && !matchRoom && !matchTag && !matchNotes) return false;
+      if (!matchTeacher && !matchRoom && !matchTag && !matchSerial && !matchModel && !matchNotes) return false;
     }
     return true;
   });
 
-  // Update records count badge to reflect filter
   const countBadge = document.getElementById('assetCount');
   if (selectedRoomFilter || query) {
     countBadge.innerText = `${filtered.length} / ${inventory.length} Records`;
@@ -818,10 +857,13 @@ function renderTable() {
     tr.innerHTML = `
       <td style="text-align: center;"><input type="checkbox" onchange="toggleSelect('${item.id}', this.checked)" ${isChecked ? 'checked' : ''}></td>
       <td><input class="editable-input" value="${escapeHtml(item.assetTag)}" onchange="updateRowField('${item.id}', 'assetTag', this.value)"></td>
+      <td><input class="editable-input" value="${escapeHtml(item.serialNumber || '')}" placeholder="--" onchange="updateRowField('${item.id}', 'serialNumber', this.value)"></td>
+      <td><input class="editable-input" value="${escapeHtml(item.model || '')}" placeholder="--" onchange="updateRowField('${item.id}', 'model', this.value)"></td>
       <td><input class="editable-input" value="${escapeHtml(item.roomNo)}" onchange="updateRowField('${item.id}', 'roomNo', this.value)"></td>
       <td><input class="editable-input" value="${escapeHtml(item.teacher)}" onchange="updateRowField('${item.id}', 'teacher', this.value)"></td>
       <td><input class="editable-input" value="${escapeHtml(item.className)}" onchange="updateRowField('${item.id}', 'className', this.value)"></td>
       <td><input class="editable-input" value="${escapeHtml(item.cartAssetTag)}" onchange="updateRowField('${item.id}', 'cartAssetTag', this.value)"></td>
+      <td><input class="editable-input" value="${escapeHtml(item.iiqAssignee || '')}" placeholder="--" onchange="updateRowField('${item.id}', 'iiqAssignee', this.value)"></td>
       <td><input class="editable-input" value="${escapeHtml(item.notes)}" placeholder="Tap to add notes..." onchange="updateRowField('${item.id}', 'notes', this.value)"></td>
       <td style="text-align:center;">
         <button class="btn-danger row-action" onclick="deleteRow('${item.id}')">Del</button>
@@ -1048,7 +1090,7 @@ async function deleteLocation(index) {
 }
 
 async function resetLocationsToDefault() {
-  if (confirm("Reset the location directory back to the original spreadsheet data? Any custom rooms you added will be removed.")) {
+  if (confirm("Reset the location directory back to the original spreadsheet data?")) {
     locationDirectory = JSON.parse(JSON.stringify(defaultLocationDirectory));
     selectedLocIndices.clear();
     await saveLocationsCloud();
@@ -1067,24 +1109,30 @@ function exportData(format) {
   let mimeType = "";
 
   if (format === 'json') {
-    content = JSON.stringify(inventory.map(({assetTag, roomNo, teacher, className, cartAssetTag, notes}) => ({
+    content = JSON.stringify(inventory.map(({assetTag, serialNumber, model, roomNo, teacher, className, cartAssetTag, iiqAssignee, notes}) => ({
       "Asset Tag": assetTag,
+      "Serial Number": serialNumber || "",
+      "Model": model || "",
       "Room No.": roomNo,
       "Teacher": teacher,
       "Class": className,
       "Cart Asset Tag": cartAssetTag,
+      "iiQ Assignee": iiqAssignee || "",
       "Notes": notes
     })), null, 2);
     filename += ".json";
     mimeType = "application/json";
   } else {
-    const headers = ["Asset Tag", "Room No.", "Teacher", "Class", "Cart Asset Tag", "Notes"];
+    const headers = ["Asset Tag", "Serial Number", "Model", "Room No.", "Teacher", "Class", "Cart Asset Tag", "iiQ Assignee", "Notes"];
     const rows = inventory.map(item => [
       `"${item.assetTag || ''}"`,
+      `"${item.serialNumber || ''}"`,
+      `"${item.model || ''}"`,
       `"${item.roomNo || ''}"`,
       `"${(item.teacher || '').replace(/"/g, '""')}"`,
       `"${(item.className || '').replace(/"/g, '""')}"`,
       `"${item.cartAssetTag || ''}"`,
+      `"${(item.iiqAssignee || '').replace(/"/g, '""')}"`,
       `"${(item.notes || '').replace(/"/g, '""')}"`
     ]);
     content = [headers.join(','), ...rows.map(r => r.join(','))].join('\r\n');
