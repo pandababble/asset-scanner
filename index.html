@@ -234,7 +234,7 @@
     table { 
       width: 100%; 
       border-collapse: collapse; 
-      min-width: 1150px; 
+      min-width: 1200px; 
       font-size: clamp(0.8rem, 1vw, 0.9rem); 
       table-layout: fixed;
     }
@@ -388,21 +388,19 @@
       </div>
     </div>
 
-    <!-- Mass Update Bar: Status or iiQ Location/Room -->
+    <!-- Mass Update Bar -->
     <div id="massUpdateBar" class="mass-bar">
       <strong style="white-space: nowrap;">Mass Update (<span id="selectedCount">0</span>):</strong>
       <select id="massField" onchange="toggleMassInput()">
-        <option value="status">Status</option>
         <option value="location">Location & Room</option>
+        <option value="status">Status</option>
         <option value="cart">Cart Asset Tag</option>
         <option value="notes">Notes</option>
       </select>
       
-      <select id="massStatusVal" style="display:inline-block;"></select>
-      
-      <select id="massCampusVal" style="display:none;" onchange="onMassLocationChanged()"></select>
-      <select id="massRoomVal" style="display:none;"></select>
-
+      <select id="massCampusVal" style="display:inline-block;" onchange="onMassLocationChanged()"></select>
+      <select id="massRoomVal" style="display:inline-block;"></select>
+      <select id="massStatusVal" style="display:none;"></select>
       <input type="text" id="massTextVal" placeholder="New value..." style="display:none;">
       
       <button class="btn-primary" onclick="applyMassUpdate()">Apply Local</button>
@@ -435,7 +433,6 @@
 <script>
 const IIQ_WORKER_PROXY_URL = "https://incident6767.pandababble.workers.dev";
 
-// 13 iiQ District Asset Statuses
 const IIQ_STATUS_LIST = [
   "In Service",
   "In Storage",
@@ -452,8 +449,7 @@ const IIQ_STATUS_LIST = [
   "Stolen"
 ];
 
-let iiqLocationsCache = {}; // Cache: { locationId: [ rooms ] }
-
+let iiqLocationsCache = {};
 let inventory = [];
 let selectedDocIds = new Set();
 let isCloudReady = false;
@@ -487,7 +483,6 @@ window.addEventListener('firebase-ready', () => {
   });
 });
 
-// Load 16 Locations from Incident IQ
 async function loadIiqLocations() {
   const campusSelect = document.getElementById('campusSelect');
   const massCampusVal = document.getElementById('massCampusVal');
@@ -518,7 +513,6 @@ async function loadIiqLocations() {
   }
 }
 
-// Fetch Rooms for the selected Location
 async function onLocationChanged() {
   const locationId = document.getElementById('campusSelect').value;
   const roomSelect = document.getElementById('roomSelect');
@@ -556,7 +550,6 @@ async function onLocationChanged() {
   }
 }
 
-// Mass update location change handler
 async function onMassLocationChanged() {
   const locationId = document.getElementById('massCampusVal').value;
   const roomSelect = document.getElementById('massRoomVal');
@@ -624,7 +617,6 @@ function clearFilters() {
   renderTable();
 }
 
-// Anti-duplicate input handlers for Bluetooth Scanners
 const scanInput = document.getElementById('scanInput');
 let isProcessingScan = false;
 
@@ -652,13 +644,17 @@ function triggerScan() {
   });
 }
 
-// Queries Incident IQ through your Cloudflare Worker relay
-async function fetchIiqAssetDetails(assetTag) {
+// Queries Incident IQ by tag or serial number
+async function fetchIiqAssetDetails(query) {
   try {
+    const payload = { action: "lookup" };
+    if (query.assetTag) payload.assetTag = String(query.assetTag).trim();
+    if (query.serialNumber) payload.serialNumber = String(query.serialNumber).trim();
+
     const res = await fetch(IIQ_WORKER_PROXY_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action: "lookup", assetTag: String(assetTag).trim() })
+      body: JSON.stringify(payload)
     });
 
     if (!res.ok) return null;
@@ -666,16 +662,11 @@ async function fetchIiqAssetDetails(assetTag) {
 
     if (json.Items && json.Items.length > 0) {
       const a = json.Items[0];
-      const serial = a.SerialNumber || "";
-      const model = a.ModelName || (a.Model && a.Model.Name) || "";
-      const status = (a.Status && a.Status.Name) || a.StatusName || "In Service";
-      const assetId = a.AssetId || "";
-      
       return {
-        assetId: assetId,
-        serialNumber: serial,
-        model: model,
-        status: status
+        assetId: a.AssetId || "",
+        serialNumber: a.SerialNumber || "",
+        model: a.ModelName || (a.Model && a.Model.Name) || "",
+        status: (a.Status && a.Status.Name) || a.StatusName || "In Service"
       };
     }
   } catch (err) {
@@ -710,8 +701,7 @@ async function handleScanSubmit() {
 
   feedback.innerHTML = `<span>Querying Incident IQ for #${rawTag}...</span>`;
 
-  // Fetch device details from Incident IQ
-  const iiqData = await fetchIiqAssetDetails(rawTag);
+  const iiqData = await fetchIiqAssetDetails({ assetTag: rawTag });
 
   const newId = Date.now().toString() + "_" + rawTag;
   const foundAssetId = (iiqData && iiqData.assetId) ? iiqData.assetId : "";
@@ -869,9 +859,9 @@ function updateMassBar() {
 
 function toggleMassInput() {
   const field = document.getElementById('massField').value;
-  document.getElementById('massStatusVal').style.display = (field === 'status') ? 'inline-block' : 'none';
   document.getElementById('massCampusVal').style.display = (field === 'location') ? 'inline-block' : 'none';
   document.getElementById('massRoomVal').style.display = (field === 'location') ? 'inline-block' : 'none';
+  document.getElementById('massStatusVal').style.display = (field === 'status') ? 'inline-block' : 'none';
   document.getElementById('massTextVal').style.display = (field === 'cart' || field === 'notes') ? 'inline-block' : 'none';
 }
 
@@ -880,13 +870,7 @@ async function applyMassUpdate() {
   const field = document.getElementById('massField').value;
   const batch = window.fs.writeBatch(window.db);
 
-  if (field === 'status') {
-    const val = document.getElementById('massStatusVal').value;
-    if (!val) return;
-    selectedDocIds.forEach(id => {
-      batch.update(window.fs.doc(window.db, "inventory", id), { status: val });
-    });
-  } else if (field === 'location') {
+  if (field === 'location') {
     const cSel = document.getElementById('massCampusVal');
     const rSel = document.getElementById('massRoomVal');
     if (!cSel.value || !rSel.value) {
@@ -903,6 +887,12 @@ async function applyMassUpdate() {
         roomId: rSel.value
       });
     });
+  } else if (field === 'status') {
+    const val = document.getElementById('massStatusVal').value;
+    if (!val) return;
+    selectedDocIds.forEach(id => {
+      batch.update(window.fs.doc(window.db, "inventory", id), { status: val });
+    });
   } else if (field === 'cart') {
     const val = document.getElementById('massTextVal').value;
     selectedDocIds.forEach(id => {
@@ -918,76 +908,79 @@ async function applyMassUpdate() {
   await batch.commit();
 }
 
+// Auto-resolves missing AssetIds by serial number or asset tag
+async function ensureAssetIdsLinked(records, btn) {
+  const missing = records.filter(r => !r.assetId);
+  if (missing.length === 0) return true;
+
+  btn.innerText = `Linking ${missing.length} iiQ IDs...`;
+  const batch = window.fs.writeBatch(window.db);
+  let resolvedCount = 0;
+
+  // Process concurrently in chunks of 8
+  const chunkSize = 8;
+  for (let i = 0; i < missing.length; i += chunkSize) {
+    const chunk = missing.slice(i, i + chunkSize);
+    await Promise.all(chunk.map(async (rec) => {
+      const query = rec.serialNumber ? { serialNumber: rec.serialNumber } : { assetTag: rec.assetTag };
+      const details = await fetchIiqAssetDetails(query);
+      if (details && details.assetId) {
+        rec.assetId = details.assetId;
+        const ref = window.fs.doc(window.db, "inventory", rec.id);
+        batch.update(ref, { assetId: details.assetId });
+        resolvedCount++;
+      }
+    }));
+  }
+
+  if (resolvedCount > 0) {
+    await batch.commit();
+  }
+
+  return records.some(r => r.assetId);
+}
+
 // Push to Incident IQ (Status or Location)
 async function confirmAndPushSelectedToIiq() {
   if (selectedDocIds.size === 0) return;
 
   const mode = document.getElementById('massField').value;
   const selectedRecords = inventory.filter(item => selectedDocIds.has(item.id));
-  const validAssetIds = selectedRecords.map(item => item.assetId).filter(Boolean);
-
-  if (validAssetIds.length === 0) {
-    alert("None of the selected items have an AssetId from Incident IQ. Please re-scan them.");
-    return;
-  }
-
   const btn = document.getElementById('btnPushIiq');
   const prevBtnText = btn.innerText;
 
-  if (mode === 'status') {
-    const targetStatus = document.getElementById('massStatusVal').value || "In Service";
-    const confirmMsg = `Push ${validAssetIds.length} device(s) to Incident IQ with Status: "${targetStatus}"?`;
-    if (!confirm(confirmMsg)) return;
+  btn.innerText = "Verifying IDs...";
+  btn.disabled = true;
 
-    btn.innerText = "Syncing to iiQ...";
-    btn.disabled = true;
+  try {
+    // 1. Auto-link missing AssetIds
+    await ensureAssetIdsLinked(selectedRecords, btn);
 
-    try {
-      await fetch(IIQ_WORKER_PROXY_URL, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          action: "bulkUpdateStatus",
-          assetIds: validAssetIds,
-          statusName: targetStatus
-        })
-      });
+    const validRecords = selectedRecords.filter(r => Boolean(r.assetId));
+    const validAssetIds = validRecords.map(r => r.assetId);
 
-      const batch = window.fs.writeBatch(window.db);
-      selectedRecords.forEach(rec => {
-        const ref = window.fs.doc(window.db, "inventory", rec.id);
-        const updatedNotes = rec.notes ? `${rec.notes} [Synced ${targetStatus}]` : `[Synced ${targetStatus}]`;
-        batch.update(ref, { status: targetStatus, notes: updatedNotes });
-      });
-      await batch.commit();
-
-      alert(`Successfully synced ${validAssetIds.length} asset(s) status to Incident IQ!`);
-    } catch (err) {
-      alert(`iiQ Push Error: ${err.message}`);
-    } finally {
-      btn.innerText = prevBtnText;
-      btn.disabled = false;
-    }
-
-  } else if (mode === 'location') {
-    const cSel = document.getElementById('massCampusVal');
-    const rSel = document.getElementById('massRoomVal');
-
-    if (!cSel.value || !rSel.value) {
-      alert("Please select both a Location and Room under Mass Update.");
+    if (validAssetIds.length === 0) {
+      alert("Could not locate AssetIds for the selected items in Incident IQ. Check that serial numbers or asset tags match.");
       return;
     }
 
-    const cName = cSel.options[cSel.selectedIndex].text;
-    const rName = rSel.options[rSel.selectedIndex].text;
+    if (mode === 'location') {
+      const cSel = document.getElementById('massCampusVal');
+      const rSel = document.getElementById('massRoomVal');
 
-    const confirmMsg = `Push ${validAssetIds.length} device(s) to Incident IQ with Location: "${cName} - ${rName}"?`;
-    if (!confirm(confirmMsg)) return;
+      if (!cSel.value || !rSel.value) {
+        alert("Please select both a Location and Room under Mass Update.");
+        return;
+      }
 
-    btn.innerText = "Syncing to iiQ...";
-    btn.disabled = true;
+      const cName = cSel.options[cSel.selectedIndex].text;
+      const rName = rSel.options[rSel.selectedIndex].text;
 
-    try {
+      const confirmMsg = `Push ${validAssetIds.length} device(s) to Incident IQ with Location: "${cName} - ${rName}"?`;
+      if (!confirm(confirmMsg)) return;
+
+      btn.innerText = "Syncing to iiQ...";
+
       await fetch(IIQ_WORKER_PROXY_URL, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -1000,7 +993,7 @@ async function confirmAndPushSelectedToIiq() {
       });
 
       const batch = window.fs.writeBatch(window.db);
-      selectedRecords.forEach(rec => {
+      validRecords.forEach(rec => {
         const ref = window.fs.doc(window.db, "inventory", rec.id);
         const updatedNotes = rec.notes ? `${rec.notes} [Synced ${rName}]` : `[Synced ${rName}]`;
         batch.update(ref, { 
@@ -1014,14 +1007,42 @@ async function confirmAndPushSelectedToIiq() {
       await batch.commit();
 
       alert(`Successfully synced ${validAssetIds.length} asset(s) location to Incident IQ!`);
-    } catch (err) {
-      alert(`iiQ Push Error: ${err.message}`);
-    } finally {
-      btn.innerText = prevBtnText;
-      btn.disabled = false;
+
+    } else if (mode === 'status') {
+      const targetStatus = document.getElementById('massStatusVal').value || "In Service";
+      const confirmMsg = `Push ${validAssetIds.length} device(s) to Incident IQ with Status: "${targetStatus}"?`;
+      if (!confirm(confirmMsg)) return;
+
+      btn.innerText = "Syncing to iiQ...";
+
+      await fetch(IIQ_WORKER_PROXY_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "bulkUpdateStatus",
+          assetIds: validAssetIds,
+          statusName: targetStatus
+        })
+      });
+
+      const batch = window.fs.writeBatch(window.db);
+      validRecords.forEach(rec => {
+        const ref = window.fs.doc(window.db, "inventory", rec.id);
+        const updatedNotes = rec.notes ? `${rec.notes} [Synced ${targetStatus}]` : `[Synced ${targetStatus}]`;
+        batch.update(ref, { status: targetStatus, notes: updatedNotes });
+      });
+      await batch.commit();
+
+      alert(`Successfully synced ${validAssetIds.length} asset(s) status to Incident IQ!`);
+    } else {
+      alert("Please set Mass Update to 'Location & Room' or 'Status' to push to Incident IQ.");
     }
-  } else {
-    alert("Please set the Mass Update dropdown to 'Status' or 'Location & Room' to push to Incident IQ.");
+
+  } catch (err) {
+    alert(`iiQ Push Error: ${err.message}`);
+  } finally {
+    btn.innerText = prevBtnText;
+    btn.disabled = false;
   }
 }
 
@@ -1100,7 +1121,6 @@ function escapeHtml(str) {
   return String(str).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/'/g, '&#039;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
-// Resizable column pointer engine (Mac mouse & iPad touch)
 function makeTableResizable(table) {
   const row = table.querySelector('thead tr');
   if (!row) return;
