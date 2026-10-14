@@ -1152,6 +1152,7 @@ async function ensureAssetIdsLinked(records, btn) {
   return records.some(r => r.assetId);
 }
 
+// Push Scanner Tab Selection to Incident IQ
 async function confirmAndPushSelectedToIiq() {
   if (selectedDocIds.size === 0) return;
 
@@ -1184,11 +1185,19 @@ async function confirmAndPushSelectedToIiq() {
 
       const cName = cSel.options[cSel.selectedIndex].text;
       const rName = rSel.value ? rSel.options[rSel.selectedIndex].text : '';
+      const chosenRoomGuid = rSel.value || null;
 
       const confirmMsg = `Push ${validAssetIds.length} device(s) to Incident IQ with Location: "${cName}${rName ? ' - ' + rName : ''}"?`;
       if (!confirm(confirmMsg)) return;
 
       btn.innerText = "Syncing to iiQ...";
+
+      console.log("Submitting bulk location update:", {
+        action: "bulkUpdateLocation",
+        assetIds: validAssetIds,
+        locationId: cSel.value,
+        roomId: chosenRoomGuid
+      });
 
       const res = await fetch(IIQ_WORKER_PROXY_URL, {
         method: "POST",
@@ -1197,13 +1206,15 @@ async function confirmAndPushSelectedToIiq() {
           action: "bulkUpdateLocation",
           assetIds: validAssetIds,
           locationId: cSel.value,
-          roomId: rSel.value || null
+          roomId: chosenRoomGuid
         })
       });
       const result = await res.json();
+      console.log("iiQ worker response:", result);
 
-      if (!res.ok) {
-        throw new Error(result.Message || result.error || "iiQ rejected request");
+      if (!res.ok || result.status > 299 || (result.response && result.response.StatusCode > 299)) {
+        const msg = (result.response && result.response.Message) || result.error || JSON.stringify(result);
+        throw new Error(msg);
       }
 
       const batch = window.fs.writeBatch(window.db);
@@ -1214,7 +1225,7 @@ async function confirmAndPushSelectedToIiq() {
           campus: cName, 
           locationId: cSel.value, 
           roomNo: rName, 
-          roomId: rSel.value || '', 
+          roomId: chosenRoomGuid || '', 
           notes: updatedNotes 
         });
       });
@@ -1240,8 +1251,9 @@ async function confirmAndPushSelectedToIiq() {
       });
       const result = await res.json();
 
-      if (!res.ok) {
-        throw new Error(result.Message || result.error || "iiQ rejected request");
+      if (!res.ok || result.status > 299 || (result.response && result.response.StatusCode > 299)) {
+        const msg = (result.response && result.response.Message) || result.error || JSON.stringify(result);
+        throw new Error(msg);
       }
 
       const batch = window.fs.writeBatch(window.db);
@@ -1602,6 +1614,7 @@ function clearCsvStaging() {
   renderCsvTable();
 }
 
+// Push CSV Selection to Incident IQ
 async function confirmAndPushCsvToIiq() {
   const currentFiltered = getFilteredCsvData();
   const targetRows = currentFiltered.filter(r => selectedCsvIndices.has(r.index));
@@ -1657,11 +1670,19 @@ async function confirmAndPushCsvToIiq() {
 
       const cName = cSel.options[cSel.selectedIndex].text;
       const rName = rSel.value ? rSel.options[rSel.selectedIndex].text : '';
+      const chosenRoomGuid = rSel.value || null;
 
       const confirmMsg = `Push ${validAssetIds.length} asset(s) to Incident IQ?\n\nTarget Location: ${cName}${rName ? ' - ' + rName : ''}`;
       if (!confirm(confirmMsg)) return;
 
       btn.innerText = "Syncing to iiQ...";
+
+      console.log("Submitting CSV bulk location update:", {
+        action: "bulkUpdateLocation",
+        assetIds: validAssetIds,
+        locationId: cSel.value,
+        roomId: chosenRoomGuid
+      });
 
       const res = await fetch(IIQ_WORKER_PROXY_URL, {
         method: "POST",
@@ -1670,13 +1691,16 @@ async function confirmAndPushCsvToIiq() {
           action: "bulkUpdateLocation",
           assetIds: validAssetIds,
           locationId: cSel.value,
-          roomId: rSel.value || null
+          roomId: chosenRoomGuid
         })
       });
 
       const result = await res.json();
-      if (!res.ok) {
-        throw new Error(result.Message || result.error || "iiQ returned an error");
+      console.log("CSV iiQ worker response:", result);
+
+      if (!res.ok || result.status > 299 || (result.response && result.response.StatusCode > 299)) {
+        const msg = (result.response && result.response.Message) || result.error || JSON.stringify(result);
+        throw new Error(msg);
       }
 
       validRows.forEach(row => {
@@ -1707,8 +1731,11 @@ async function confirmAndPushCsvToIiq() {
       });
 
       const result = await res.json();
-      if (!res.ok) {
-        throw new Error(result.Message || result.error || "iiQ returned an error");
+      console.log("CSV Status worker response:", result);
+
+      if (!res.ok || result.status > 299 || (result.response && result.response.StatusCode > 299)) {
+        const msg = (result.response && result.response.Message) || result.error || JSON.stringify(result);
+        throw new Error(msg);
       }
 
       validRows.forEach(row => {
