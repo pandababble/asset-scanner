@@ -356,7 +356,7 @@
       align-items: center; 
       margin-bottom: 8px; 
       flex-wrap: wrap;
-      gap: 8px;
+      gap: 8px; 
     }
     .modal-table-wrap {
       max-height: 360px; 
@@ -465,8 +465,8 @@
         <tr>
           <th style="width: 38px; text-align: center;"><input type="checkbox" id="selectAll" onclick="toggleSelectAll(this.checked)"></th>
           <th style="width: 105px;">Asset Tag</th>
-          <th style="width: 130px;">Serial Number</th>
-          <th style="width: 140px;">Model</th>
+          <th style="width: 140px;">Serial Number</th>
+          <th style="width: 180px;">Model</th>
           <th style="width: 85px;">Room No.</th>
           <th style="width: 150px;">Teacher</th>
           <th style="width: 100px;">Class</th>
@@ -545,12 +545,8 @@
   </div>
 
 <script>
-// Incident IQ Direct API Configuration
-const IIQ_CONFIG = {
-  apiUrl: "https://staffordmsd.incidentiq.com/api/v1.0",
-  siteId: "7b856d3c-7c94-4dc9-a9b8-1fc8cbd9c565",
-  token: "eyJhbGciOiJVUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJ3YjFnNmQzYy03Yzk0LTRkYzktYTIiLC0xZmE4Y2JkOWM1NjUiLCJ2Y29wZSI6Imh0dHBzOi8vc3RhZmZvcmRtc2QuaW5jaWRlbnRpcS5jb20iLCJzdWIiOiIwYzdhYjFkMy1iZGRjLTRlOGMtYmEzZC0yNjRlMzM1ZTk3M2YiLCJqdGkiOiI3N2MyYmE4ZC1kOWM3LWYxMTEtYmY1Yi02MDQ1YmRlMDViN2IiLCJleHAiOjE3OTIwOTE1ODcyNjUuNDI3LCJ0eHAiOjE4ODY2ODE2NjUuNDI3fQ.jzLF_LYEYEhOsjtt1f3mMGJ7PB5EGNVaIBQV3xYmcQ"
-};
+// Live Cloudflare Worker Relay URL
+const IIQ_WORKER_PROXY_URL = "https://incident6767.pandababble.workers.dev";
 
 const defaultLocationDirectory = [
   {"Room No.": "P209", "Class": "LAMPS", "Teacher": "Harris, Brittany"},
@@ -730,60 +726,31 @@ scanInput.addEventListener('keydown', (e) => {
   }
 });
 
-// Robust Incident IQ fetch with direct and CORS fallback handling
+// Queries Incident IQ through your Cloudflare Worker relay
 async function fetchIiqAssetDetails(assetTag) {
-  const targetUrl = `${IIQ_CONFIG.apiUrl}/assets`;
-  const bodyPayload = JSON.stringify({
-    Filters: [{ Facet: "AssetTag", Value: String(assetTag).trim() }]
-  });
-
-  const headers = {
-    "Client": "ApiClient",
-    "SiteId": IIQ_CONFIG.siteId,
-    "Authorization": `Bearer ${IIQ_CONFIG.token}`,
-    "Content-Type": "application/json"
-  };
-
-  // Attempt 1: Direct fetch
   try {
-    const res = await fetch(targetUrl, { method: "POST", headers, body: bodyPayload });
-    if (res.ok) {
-      const json = await res.json();
-      const parsed = extractFields(json);
-      if (parsed) return parsed;
+    const res = await fetch(IIQ_WORKER_PROXY_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ assetTag: String(assetTag).trim() })
+    });
+
+    if (!res.ok) return null;
+    const json = await res.json();
+
+    if (json.Items && json.Items.length > 0) {
+      const a = json.Items[0];
+      const serial = a.SerialNumber || "";
+      const model = a.ModelName || (a.Model && a.Model.Name) || "";
+      
+      return {
+        serialNumber: serial,
+        model: model,
+        iiqAssignee: serial // Display serial number under iiQ Assignee column
+      };
     }
-  } catch (directErr) {
-    console.warn("Direct iiQ blocked by browser CORS, trying relay...", directErr.message);
-  }
-
-  // Attempt 2: Free open CORS bridge (allows browser execution without running your own proxy)
-  try {
-    const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(targetUrl)}`;
-    const res = await fetch(proxyUrl, { method: "POST", headers, body: bodyPayload });
-    if (res.ok) {
-      const json = await res.json();
-      return extractFields(json);
-    }
-  } catch (proxyErr) {
-    console.warn("CORS bridge query failed:", proxyErr.message);
-  }
-
-  return null;
-}
-
-function extractFields(json) {
-  const items = json.Items || json.items || (Array.isArray(json) ? json : []);
-  if (items.length > 0) {
-    const a = items[0];
-    const serial = a.SerialNumber || a.serialNumber || "";
-    const model = a.ModelName || (a.Model && a.Model.Name) || "";
-    // Put serial number into iiQ Assignee field as requested
-    const assignee = serial || a.User || a.CurrentOwner || (a.Owner && a.Owner.Name) || "";
-    return {
-      serialNumber: serial,
-      model: model,
-      iiqAssignee: assignee
-    };
+  } catch (err) {
+    console.warn("Worker proxy lookup error:", err.message);
   }
   return null;
 }
@@ -806,18 +773,17 @@ async function handleScanSubmit() {
     return;
   }
 
-  feedback.innerHTML = `<span>Checking Incident IQ for #${rawTag}...</span>`;
+  feedback.innerHTML = `<span>Querying Incident IQ for #${rawTag}...</span>`;
 
-  // Fetch iiQ details
+  // Fetch device details from Incident IQ
   const iiqData = await fetchIiqAssetDetails(rawTag);
 
   const loc = locationDirectory[roomIdx];
   const newId = Date.now().toString() + "_" + rawTag;
 
-  // The Serial Number is written to both serialNumber and iiqAssignee
   const foundSerial = (iiqData && iiqData.serialNumber) ? iiqData.serialNumber : "";
   const foundModel = (iiqData && iiqData.model) ? iiqData.model : "";
-  const foundAssignee = foundSerial || ((iiqData && iiqData.iiqAssignee) ? iiqData.iiqAssignee : "");
+  const foundAssignee = (iiqData && iiqData.iiqAssignee) ? iiqData.iiqAssignee : foundSerial;
 
   const record = {
     assetTag: rawTag,
@@ -835,7 +801,7 @@ async function handleScanSubmit() {
   try {
     if (isCloudReady) {
       await window.fs.setDoc(window.fs.doc(window.db, "inventory", newId), record);
-      const iiqInfo = foundSerial ? ` [S/N: ${foundSerial}]` : '';
+      const iiqInfo = foundSerial ? ` [S/N: ${foundSerial} | ${foundModel}]` : '';
       feedback.innerHTML = `<span class="status-ok">Recorded #${rawTag}${iiqInfo} &rarr; Room ${loc["Room No."]} (${loc["Teacher"]})</span>`;
     } else {
       feedback.innerHTML = `<span class="status-warn">Cloud not connected yet. Check network.</span>`;
