@@ -1152,7 +1152,7 @@ async function ensureAssetIdsLinked(records, btn) {
   return records.some(r => r.assetId);
 }
 
-// Push Scanner Tab Selection to Incident IQ
+// Push Scanner Tab Selection to Incident IQ with assetTags included
 async function confirmAndPushSelectedToIiq() {
   if (selectedDocIds.size === 0) return;
 
@@ -1168,6 +1168,7 @@ async function confirmAndPushSelectedToIiq() {
     await ensureAssetIdsLinked(selectedRecords, btn);
     const validRecords = selectedRecords.filter(r => Boolean(r.assetId));
     const validAssetIds = validRecords.map(r => r.assetId);
+    const validAssetTags = validRecords.map(r => r.assetTag);
 
     if (validAssetIds.length === 0) {
       alert("Could not locate AssetIds for the selected items in Incident IQ.");
@@ -1192,19 +1193,13 @@ async function confirmAndPushSelectedToIiq() {
 
       btn.innerText = "Syncing to iiQ...";
 
-      console.log("Submitting bulk location update:", {
-        action: "bulkUpdateLocation",
-        assetIds: validAssetIds,
-        locationId: cSel.value,
-        roomId: chosenRoomGuid
-      });
-
       const res = await fetch(IIQ_WORKER_PROXY_URL, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           action: "bulkUpdateLocation",
           assetIds: validAssetIds,
+          assetTags: validAssetTags,
           locationId: cSel.value,
           roomId: chosenRoomGuid
         })
@@ -1212,8 +1207,9 @@ async function confirmAndPushSelectedToIiq() {
       const result = await res.json();
       console.log("iiQ worker response:", result);
 
-      if (!res.ok || result.status > 299 || (result.response && result.response.StatusCode > 299)) {
-        const msg = (result.response && result.response.Message) || result.error || JSON.stringify(result);
+      if (!res.ok || result.status > 299 || (result.details && result.details.some(d => !d.ok))) {
+        const errDetail = result.details ? result.details.find(d => !d.ok) : null;
+        const msg = (errDetail && errDetail.response && errDetail.response.Errors && errDetail.response.Errors[0].Message) || result.error || "iiQ rejected request";
         throw new Error(msg);
       }
 
@@ -1251,8 +1247,9 @@ async function confirmAndPushSelectedToIiq() {
       });
       const result = await res.json();
 
-      if (!res.ok || result.status > 299 || (result.response && result.response.StatusCode > 299)) {
-        const msg = (result.response && result.response.Message) || result.error || JSON.stringify(result);
+      if (!res.ok || result.status > 299 || (result.details && result.details.some(d => !d.ok))) {
+        const errDetail = result.details ? result.details.find(d => !d.ok) : null;
+        const msg = (errDetail && errDetail.response && errDetail.response.Message) || result.error || "iiQ rejected request";
         throw new Error(msg);
       }
 
@@ -1614,7 +1611,7 @@ function clearCsvStaging() {
   renderCsvTable();
 }
 
-// Push CSV Selection to Incident IQ
+// Push CSV Selection to Incident IQ with assetTags included
 async function confirmAndPushCsvToIiq() {
   const currentFiltered = getFilteredCsvData();
   const targetRows = currentFiltered.filter(r => selectedCsvIndices.has(r.index));
@@ -1653,6 +1650,7 @@ async function confirmAndPushCsvToIiq() {
 
     const validRows = targetRows.filter(r => Boolean(r.assetId));
     const validAssetIds = validRows.map(r => r.assetId);
+    const validAssetTags = validRows.map(r => r.assetTag);
 
     if (validAssetIds.length === 0) {
       alert("None of the selected CSV records could be matched to an Asset in Incident IQ. Check that asset tags exist in iiQ.");
@@ -1677,19 +1675,13 @@ async function confirmAndPushCsvToIiq() {
 
       btn.innerText = "Syncing to iiQ...";
 
-      console.log("Submitting CSV bulk location update:", {
-        action: "bulkUpdateLocation",
-        assetIds: validAssetIds,
-        locationId: cSel.value,
-        roomId: chosenRoomGuid
-      });
-
       const res = await fetch(IIQ_WORKER_PROXY_URL, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           action: "bulkUpdateLocation",
           assetIds: validAssetIds,
+          assetTags: validAssetTags,
           locationId: cSel.value,
           roomId: chosenRoomGuid
         })
@@ -1698,8 +1690,9 @@ async function confirmAndPushCsvToIiq() {
       const result = await res.json();
       console.log("CSV iiQ worker response:", result);
 
-      if (!res.ok || result.status > 299 || (result.response && result.response.StatusCode > 299)) {
-        const msg = (result.response && result.response.Message) || result.error || JSON.stringify(result);
+      if (!res.ok || result.status > 299 || (result.details && result.details.some(d => !d.ok))) {
+        const errDetail = result.details ? result.details.find(d => !d.ok) : null;
+        const msg = (errDetail && errDetail.response && errDetail.response.Errors && errDetail.response.Errors[0].Message) || result.error || "iiQ returned an error";
         throw new Error(msg);
       }
 
@@ -1733,8 +1726,9 @@ async function confirmAndPushCsvToIiq() {
       const result = await res.json();
       console.log("CSV Status worker response:", result);
 
-      if (!res.ok || result.status > 299 || (result.response && result.response.StatusCode > 299)) {
-        const msg = (result.response && result.response.Message) || result.error || JSON.stringify(result);
+      if (!res.ok || result.status > 299 || (result.details && result.details.some(d => !d.ok))) {
+        const errDetail = result.details ? result.details.find(d => !d.ok) : null;
+        const msg = (errDetail && errDetail.response && errDetail.response.Message) || result.error || "iiQ returned an error";
         throw new Error(msg);
       }
 
