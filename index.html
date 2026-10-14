@@ -12,7 +12,41 @@
   <meta name="theme-color" content="#1976d2">
   <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='20' fill='%231976d2'/%3E%3Cpath d='M25 35h10v30H25zm15 0h6v30h-6zm10 0h14v30H50zm18 0h7v30h-7zm11 0h6v30h-6z' fill='white'/%3E%3C/svg%3E">
 
-  <title>Asset Tag Scanner & Inventory Manager</title>
+  <title>Asset Tag Scanner & Live Inventory</title>
+
+  <!-- Firebase Modular Scripts (CDN) -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+    import { getAnalytics } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-analytics.js";
+    import { 
+      getFirestore, collection, doc, onSnapshot, setDoc, updateDoc, deleteDoc, writeBatch 
+    } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+    // Your Web App's Firebase Configuration
+    const firebaseConfig = {
+      apiKey: "AIzaSyBNBsRb9v9Mpk362Zoit0DaaChNXHgiJug",
+      authDomain: "maum-6b43c.firebaseapp.com",
+      projectId: "maum-6b43c",
+      storageBucket: "maum-6b43c.firebasestorage.app",
+      messagingSenderId: "186721218891",
+      appId: "1:186721218891:web:75a7537d21552a8a72f8ce",
+      measurementId: "G-54MJQBLY7V"
+    };
+
+    // Initialize Firebase & Analytics
+    const app = initializeApp(firebaseConfig);
+    const analytics = getAnalytics(app);
+    const db = getFirestore(app);
+
+    // Expose database instances and helpers to window scope
+    window.db = db;
+    window.analytics = analytics;
+    window.fs = { collection, doc, onSnapshot, setDoc, updateDoc, deleteDoc, writeBatch };
+    
+    // Notify application that Firebase is connected
+    window.dispatchEvent(new Event('firebase-ready'));
+  </script>
+
   <style>
     :root {
       --primary: #1976d2;
@@ -37,7 +71,7 @@
     }
     h1 { 
       margin: 0 0 12px 0; 
-      font-size: 1.4rem; 
+      font-size: 1.35rem; 
       color: var(--primary-dark); 
       display: flex; 
       align-items: center; 
@@ -52,6 +86,24 @@
       color: var(--primary-dark); 
       border-radius: 12px; 
       font-weight: normal; 
+    }
+    .sync-status {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.8rem;
+      font-weight: 500;
+      color: var(--accent);
+      background: #e8f5e9;
+      padding: 4px 10px;
+      border-radius: 12px;
+    }
+    .sync-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--accent);
+      box-shadow: 0 0 0 2px rgba(46, 125, 50, 0.2);
     }
     
     .card { 
@@ -257,9 +309,7 @@
       border: 1px solid var(--border);
     }
     @media (max-width: 600px) {
-      .loc-add-form {
-        grid-template-columns: 1fr;
-      }
+      .loc-add-form { grid-template-columns: 1fr; }
     }
   </style>
 </head>
@@ -268,7 +318,8 @@
   <h1>
     <span>Asset Tag Scanner</span>
     <div style="display:flex; gap:8px; align-items:center;">
-      <button class="btn-secondary" onclick="openLocationManager()" style="font-size:0.85rem; padding: 6px 12px;">Manage Rooms / Locations</button>
+      <span class="sync-status" id="cloudStatus"><span class="sync-dot"></span> Cloud Live</span>
+      <button class="btn-secondary" onclick="openLocationManager()" style="font-size:0.85rem; padding: 6px 12px;">Manage Rooms</button>
       <span class="badge" id="assetCount">0 Records</span>
     </div>
   </h1>
@@ -362,7 +413,7 @@
   <div id="locationModal" class="modal-overlay">
     <div class="modal-card">
       <div class="modal-header">
-        <h2>Manage Rooms & Locations Directory</h2>
+        <h2>Manage Rooms & Locations (Cloud Synced)</h2>
         <button class="btn-secondary" onclick="closeLocationManager()" style="padding:4px 8px;">✕</button>
       </div>
       <div class="modal-body">
@@ -450,14 +501,45 @@ const defaultLocationDirectory = [
   {"Room No.": "P109", "Class": "1st Grade", "Teacher": "Turner, Linda"}
 ];
 
-let locationDirectory = JSON.parse(localStorage.getItem('es_location_directory')) || defaultLocationDirectory;
-let inventory = JSON.parse(localStorage.getItem('es_asset_inventory') || '[]');
-let selectedIndices = new Set();
+let locationDirectory = defaultLocationDirectory;
+let inventory = [];
+let selectedDocIds = new Set();
+let isCloudReady = false;
 
-function saveLocations() {
-  localStorage.setItem('es_location_directory', JSON.stringify(locationDirectory));
-  initDropdowns();
-}
+// Connect to Firestore real-time listeners once script is ready
+window.addEventListener('firebase-ready', () => {
+  isCloudReady = true;
+  document.getElementById('cloudStatus').innerHTML = '<span class="sync-dot"></span> Cloud Live';
+
+  // 1. Listen for real-time inventory updates
+  const invCol = window.fs.collection(window.db, "inventory");
+  window.fs.onSnapshot(invCol, (snapshot) => {
+    inventory = [];
+    snapshot.forEach(docSnap => {
+      inventory.push({ id: docSnap.id, ...docSnap.data() });
+    });
+    // Sort newest scans to top
+    inventory.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+    document.getElementById('assetCount').innerText = `${inventory.length} Records`;
+    renderTable();
+  }, (err) => {
+    console.warn("Firestore inv sync:", err);
+  });
+
+  // 2. Listen for real-time locations directory
+  const locDoc = window.fs.doc(window.db, "config", "locations");
+  window.fs.onSnapshot(locDoc, (docSnap) => {
+    if (docSnap.exists() && Array.isArray(docSnap.data().list)) {
+      locationDirectory = docSnap.data().list;
+    } else {
+      // First run: seed Firestore with default spreadsheet directory
+      window.fs.setDoc(locDoc, { list: defaultLocationDirectory });
+      locationDirectory = defaultLocationDirectory;
+    }
+    initDropdowns();
+    renderLocationList();
+  });
+});
 
 function initDropdowns() {
   const roomSelect = document.getElementById('roomSelect');
@@ -511,7 +593,7 @@ scanInput.addEventListener('keydown', (e) => {
   }
 });
 
-function handleScanSubmit() {
+async function handleScanSubmit() {
   const rawTag = scanInput.value.trim();
   const roomIdx = document.getElementById('roomSelect').value;
   const cartTag = document.getElementById('cartAssetTag').value.trim();
@@ -530,28 +612,31 @@ function handleScanSubmit() {
   }
 
   const loc = locationDirectory[roomIdx];
+  const newId = Date.now().toString() + "_" + rawTag;
   const record = {
-    id: Date.now() + Math.random().toString(),
     assetTag: rawTag,
     roomNo: loc["Room No."],
     teacher: loc["Teacher"],
     className: loc["Class"],
     cartAssetTag: cartTag,
-    notes: ""
+    notes: "",
+    timestamp: Date.now()
   };
 
-  inventory.unshift(record);
-  saveInventory();
-  renderTable();
-
-  feedback.innerHTML = `<span class="status-ok">Recorded Asset #${rawTag} &rarr; Room ${loc["Room No."]} (${loc["Teacher"]})</span>`;
-  scanInput.value = '';
-  scanInput.focus();
-}
-
-function saveInventory() {
-  localStorage.setItem('es_asset_inventory', JSON.stringify(inventory));
-  document.getElementById('assetCount').innerText = `${inventory.length} Records`;
+  try {
+    if (isCloudReady) {
+      await window.fs.setDoc(window.fs.doc(window.db, "inventory", newId), record);
+    } else {
+      // Fallback
+      inventory.unshift({ id: newId, ...record });
+      renderTable();
+    }
+    feedback.innerHTML = `<span class="status-ok">Recorded Asset #${rawTag} &rarr; Room ${loc["Room No."]} (${loc["Teacher"]})</span>`;
+    scanInput.value = '';
+    scanInput.focus();
+  } catch (err) {
+    feedback.innerHTML = `<span class="status-warn">Cloud error: ${err.message}</span>`;
+  }
 }
 
 function renderTable() {
@@ -559,8 +644,7 @@ function renderTable() {
   const tbody = document.getElementById('inventoryBody');
   tbody.innerHTML = '';
 
-  const filtered = inventory.filter((item, index) => {
-    item._origIndex = index;
+  const filtered = inventory.filter(item => {
     if (!query) return true;
     return (item.teacher && item.teacher.toLowerCase().includes(query)) ||
            (item.roomNo && item.roomNo.toLowerCase().includes(query)) ||
@@ -568,19 +652,18 @@ function renderTable() {
   });
 
   filtered.forEach(item => {
-    const idx = item._origIndex;
-    const isChecked = selectedIndices.has(idx);
+    const isChecked = selectedDocIds.has(item.id);
     const tr = document.createElement('tr');
     tr.innerHTML = `
-      <td style="text-align: center;"><input type="checkbox" onchange="toggleSelect(${idx}, this.checked)" ${isChecked ? 'checked' : ''}></td>
-      <td><input class="editable-input" value="${escapeHtml(item.assetTag)}" onchange="updateRowField(${idx}, 'assetTag', this.value)"></td>
-      <td><input class="editable-input" value="${escapeHtml(item.roomNo)}" onchange="updateRowField(${idx}, 'roomNo', this.value)"></td>
-      <td><input class="editable-input" value="${escapeHtml(item.teacher)}" onchange="updateRowField(${idx}, 'teacher', this.value)"></td>
-      <td><input class="editable-input" value="${escapeHtml(item.className)}" onchange="updateRowField(${idx}, 'className', this.value)"></td>
-      <td><input class="editable-input" value="${escapeHtml(item.cartAssetTag)}" onchange="updateRowField(${idx}, 'cartAssetTag', this.value)"></td>
-      <td><input class="editable-input" value="${escapeHtml(item.notes)}" placeholder="Tap to add notes..." onchange="updateRowField(${idx}, 'notes', this.value)"></td>
+      <td style="text-align: center;"><input type="checkbox" onchange="toggleSelect('${item.id}', this.checked)" ${isChecked ? 'checked' : ''}></td>
+      <td><input class="editable-input" value="${escapeHtml(item.assetTag)}" onchange="updateRowField('${item.id}', 'assetTag', this.value)"></td>
+      <td><input class="editable-input" value="${escapeHtml(item.roomNo)}" onchange="updateRowField('${item.id}', 'roomNo', this.value)"></td>
+      <td><input class="editable-input" value="${escapeHtml(item.teacher)}" onchange="updateRowField('${item.id}', 'teacher', this.value)"></td>
+      <td><input class="editable-input" value="${escapeHtml(item.className)}" onchange="updateRowField('${item.id}', 'className', this.value)"></td>
+      <td><input class="editable-input" value="${escapeHtml(item.cartAssetTag)}" onchange="updateRowField('${item.id}', 'cartAssetTag', this.value)"></td>
+      <td><input class="editable-input" value="${escapeHtml(item.notes)}" placeholder="Tap to add notes..." onchange="updateRowField('${item.id}', 'notes', this.value)"></td>
       <td style="text-align:center;">
-        <button class="btn-danger row-action" onclick="deleteRow(${idx})">Del</button>
+        <button class="btn-danger row-action" onclick="deleteRow('${item.id}')">Del</button>
       </td>
     `;
     tbody.appendChild(tr);
@@ -589,31 +672,37 @@ function renderTable() {
   updateMassBar();
 }
 
-function updateRowField(index, field, value) {
-  if (inventory[index]) {
-    inventory[index][field] = value;
-    saveInventory();
+async function updateRowField(docId, field, value) {
+  if (!isCloudReady) return;
+  try {
+    const docRef = window.fs.doc(window.db, "inventory", docId);
+    await window.fs.updateDoc(docRef, { [field]: value });
+  } catch (e) {
+    console.error("Update error:", e);
   }
 }
 
-function deleteRow(index) {
-  inventory.splice(index, 1);
-  selectedIndices.delete(index);
-  saveInventory();
-  renderTable();
+async function deleteRow(docId) {
+  if (!isCloudReady) return;
+  try {
+    await window.fs.deleteDoc(window.fs.doc(window.db, "inventory", docId));
+    selectedDocIds.delete(docId);
+  } catch (e) {
+    console.error("Delete error:", e);
+  }
 }
 
-function toggleSelect(index, isChecked) {
-  if (isChecked) selectedIndices.add(index);
-  else selectedIndices.delete(index);
+function toggleSelect(docId, isChecked) {
+  if (isChecked) selectedDocIds.add(docId);
+  else selectedDocIds.delete(docId);
   updateMassBar();
 }
 
 function toggleSelectAll(isChecked) {
   if (isChecked) {
-    inventory.forEach((_, idx) => selectedIndices.add(idx));
+    inventory.forEach(item => selectedDocIds.add(item.id));
   } else {
-    selectedIndices.clear();
+    selectedDocIds.clear();
   }
   renderTable();
 }
@@ -621,9 +710,9 @@ function toggleSelectAll(isChecked) {
 function updateMassBar() {
   const bar = document.getElementById('massUpdateBar');
   const countSpan = document.getElementById('selectedCount');
-  countSpan.innerText = selectedIndices.size;
-  bar.style.display = selectedIndices.size > 0 ? 'flex' : 'none';
-  document.getElementById('selectAll').checked = (inventory.length > 0 && selectedIndices.size === inventory.length);
+  countSpan.innerText = selectedDocIds.size;
+  bar.style.display = selectedDocIds.size > 0 ? 'flex' : 'none';
+  document.getElementById('selectAll').checked = (inventory.length > 0 && selectedDocIds.size === inventory.length);
 }
 
 function toggleMassInput() {
@@ -632,38 +721,48 @@ function toggleMassInput() {
   document.getElementById('massTextVal').style.display = field !== 'room' ? 'inline-block' : 'none';
 }
 
-function applyMassUpdate() {
+async function applyMassUpdate() {
+  if (selectedDocIds.size === 0 || !isCloudReady) return;
   const field = document.getElementById('massField').value;
-  if (selectedIndices.size === 0) return;
+  const batch = window.fs.writeBatch(window.db);
 
   if (field === 'room') {
     const locIdx = document.getElementById('massRoomVal').value;
     if (locIdx === "") return;
     const loc = locationDirectory[locIdx];
-    selectedIndices.forEach(idx => {
-      inventory[idx].roomNo = loc["Room No."];
-      inventory[idx].teacher = loc["Teacher"];
-      inventory[idx].className = loc["Class"];
+    selectedDocIds.forEach(id => {
+      const ref = window.fs.doc(window.db, "inventory", id);
+      batch.update(ref, {
+        roomNo: loc["Room No."],
+        teacher: loc["Teacher"],
+        className: loc["Class"]
+      });
     });
   } else if (field === 'cart') {
     const val = document.getElementById('massTextVal').value;
-    selectedIndices.forEach(idx => inventory[idx].cartAssetTag = val);
+    selectedDocIds.forEach(id => {
+      batch.update(window.fs.doc(window.db, "inventory", id), { cartAssetTag: val });
+    });
   } else if (field === 'notes') {
     const val = document.getElementById('massTextVal').value;
-    selectedIndices.forEach(idx => inventory[idx].notes = val);
+    selectedDocIds.forEach(id => {
+      batch.update(window.fs.doc(window.db, "inventory", id), { notes: val });
+    });
   }
 
-  saveInventory();
-  renderTable();
+  await batch.commit();
 }
 
-function deleteSelected() {
-  if (selectedIndices.size === 0) return;
-  if (!confirm(`Delete ${selectedIndices.size} selected row(s)?`)) return;
-  inventory = inventory.filter((_, idx) => !selectedIndices.has(idx));
-  selectedIndices.clear();
-  saveInventory();
-  renderTable();
+async function deleteSelected() {
+  if (selectedDocIds.size === 0 || !isCloudReady) return;
+  if (!confirm(`Delete ${selectedDocIds.size} selected record(s) from cloud?`)) return;
+
+  const batch = window.fs.writeBatch(window.db);
+  selectedDocIds.forEach(id => {
+    batch.delete(window.fs.doc(window.db, "inventory", id));
+  });
+  await batch.commit();
+  selectedDocIds.clear();
 }
 
 /* Location Directory Management */
@@ -694,7 +793,13 @@ function renderLocationList() {
   });
 }
 
-function addNewLocation() {
+async function saveLocationsCloud() {
+  if (!isCloudReady) return;
+  await window.fs.setDoc(window.fs.doc(window.db, "config", "locations"), { list: locationDirectory });
+  initDropdowns();
+}
+
+async function addNewLocation() {
   const room = document.getElementById('newRoomNo').value.trim();
   const teacher = document.getElementById('newTeacher').value.trim();
   const cls = document.getElementById('newClass').value.trim();
@@ -710,7 +815,7 @@ function addNewLocation() {
     "Class": cls || "General"
   });
 
-  saveLocations();
+  await saveLocationsCloud();
   renderLocationList();
 
   document.getElementById('newRoomNo').value = '';
@@ -718,25 +823,25 @@ function addNewLocation() {
   document.getElementById('newClass').value = '';
 }
 
-function updateLocationField(index, field, value) {
+async function updateLocationField(index, field, value) {
   if (locationDirectory[index]) {
     locationDirectory[index][field] = value;
-    saveLocations();
+    await saveLocationsCloud();
   }
 }
 
-function deleteLocation(index) {
+async function deleteLocation(index) {
   if (confirm(`Remove room ${locationDirectory[index]["Room No."]} (${locationDirectory[index]["Teacher"]})?`)) {
     locationDirectory.splice(index, 1);
-    saveLocations();
+    await saveLocationsCloud();
     renderLocationList();
   }
 }
 
-function resetLocationsToDefault() {
+async function resetLocationsToDefault() {
   if (confirm("Reset the location directory back to the original spreadsheet data? Any custom rooms you added will be removed.")) {
     locationDirectory = JSON.parse(JSON.stringify(defaultLocationDirectory));
-    saveLocations();
+    await saveLocationsCloud();
     renderLocationList();
   }
 }
@@ -795,8 +900,6 @@ function escapeHtml(str) {
 
 window.onload = () => {
   initDropdowns();
-  saveInventory();
-  renderTable();
 };
 </script>
 </body>
