@@ -264,7 +264,7 @@
     table { 
       width: 100%; 
       border-collapse: collapse; 
-      min-width: 1150px; 
+      min-width: 1200px; 
       font-size: clamp(0.8rem, 1vw, 0.9rem); 
       table-layout: fixed;
     }
@@ -844,6 +844,7 @@ function triggerScan() {
 async function fetchIiqAssetDetails(query) {
   try {
     const payload = { action: "lookup" };
+    if (query.assetId) payload.assetId = String(query.assetId).trim();
     if (query.assetTag) payload.assetTag = String(query.assetTag).trim();
     if (query.serialNumber) payload.serialNumber = String(query.serialNumber).trim();
 
@@ -862,7 +863,12 @@ async function fetchIiqAssetDetails(query) {
         assetId: a.AssetId || "",
         serialNumber: a.SerialNumber || "",
         model: a.ModelName || (a.Model && a.Model.Name) || "",
-        status: (a.Status && a.Status.Name) || a.StatusName || "In Service"
+        modelId: a.ModelId || (a.Model && a.Model.ModelId) || "",
+        assetTypeId: a.AssetTypeId || (a.AssetType && a.AssetType.AssetTypeId) || "",
+        status: (a.Status && a.Status.Name) || a.StatusName || "In Service",
+        statusTypeId: a.StatusTypeId || (a.Status && a.Status.StatusTypeId) || "",
+        locationId: a.LocationId || "",
+        roomId: a.RoomId || ""
       };
     }
   } catch (err) {
@@ -884,16 +890,16 @@ async function handleScanSubmit() {
     return;
   }
 
-  if (!campusSel.value || !roomSel.value) {
-    feedback.innerHTML = '<span class="status-warn">Please select both a Campus and Room before scanning.</span>';
+  if (!campusSel.value) {
+    feedback.innerHTML = '<span class="status-warn">Please select at least a Campus before scanning.</span>';
     scanInput.focus();
     return;
   }
 
   const campusName = campusSel.options[campusSel.selectedIndex].text;
-  const roomName = roomSel.options[roomSel.selectedIndex].text;
+  const roomName = roomSel.value ? roomSel.options[roomSel.selectedIndex].text : '';
   const locationId = campusSel.value;
-  const roomId = roomSel.value;
+  const roomId = roomSel.value || '';
 
   feedback.innerHTML = `<span>Querying Incident IQ for #${rawTag}...</span>`;
 
@@ -904,6 +910,7 @@ async function handleScanSubmit() {
   const foundSerial = (iiqData && iiqData.serialNumber) ? iiqData.serialNumber : "";
   const foundModel = (iiqData && iiqData.model) ? iiqData.model : "";
   const foundStatus = (iiqData && iiqData.status) ? iiqData.status : "In Service";
+  const foundStatusTypeId = (iiqData && iiqData.statusTypeId) ? iiqData.statusTypeId : "";
 
   const record = {
     assetId: foundAssetId,
@@ -911,6 +918,7 @@ async function handleScanSubmit() {
     serialNumber: foundSerial,
     model: foundModel,
     status: foundStatus,
+    statusTypeId: foundStatusTypeId,
     campus: campusName,
     locationId: locationId,
     roomNo: roomName,
@@ -924,7 +932,7 @@ async function handleScanSubmit() {
     if (isCloudReady) {
       await window.fs.setDoc(window.fs.doc(window.db, "inventory", newId), record);
       const iiqInfo = foundSerial ? ` [S/N: ${foundSerial} | ${foundModel} (${foundStatus})]` : '';
-      feedback.innerHTML = `<span class="status-ok">Recorded #${rawTag}${iiqInfo} &rarr; ${campusName} - ${roomName}</span>`;
+      feedback.innerHTML = `<span class="status-ok">Recorded #${rawTag}${iiqInfo} &rarr; ${campusName} ${roomName ? '- ' + roomName : ''}</span>`;
     } else {
       feedback.innerHTML = `<span class="status-warn">Cloud not connected yet. Check network.</span>`;
     }
@@ -1069,18 +1077,18 @@ async function applyMassUpdate() {
   if (field === 'location') {
     const cSel = document.getElementById('massCampusVal');
     const rSel = document.getElementById('massRoomVal');
-    if (!cSel.value || !rSel.value) {
-      alert("Please choose both a Location and Room.");
+    if (!cSel.value) {
+      alert("Please choose an iiQ Location.");
       return;
     }
     const cName = cSel.options[cSel.selectedIndex].text;
-    const rName = rSel.options[rSel.selectedIndex].text;
+    const rName = rSel.value ? rSel.options[rSel.selectedIndex].text : '';
     selectedDocIds.forEach(id => {
       batch.update(window.fs.doc(window.db, "inventory", id), {
         campus: cName,
         locationId: cSel.value,
         roomNo: rName,
-        roomId: rSel.value
+        roomId: rSel.value || ''
       });
     });
   } else if (field === 'status') {
@@ -1120,8 +1128,21 @@ async function ensureAssetIdsLinked(records, btn) {
       const details = await fetchIiqAssetDetails(query);
       if (details && details.assetId) {
         rec.assetId = details.assetId;
+        rec.serialNumber = details.serialNumber;
+        rec.model = details.model;
+        rec.locationId = details.locationId;
+        rec.roomId = details.roomId;
+        rec.status = details.status;
+        rec.statusTypeId = details.statusTypeId;
+
         const ref = window.fs.doc(window.db, "inventory", rec.id);
-        batch.update(ref, { assetId: details.assetId });
+        batch.update(ref, { 
+          assetId: details.assetId,
+          serialNumber: details.serialNumber,
+          model: details.model,
+          status: details.status,
+          statusTypeId: details.statusTypeId
+        });
         resolvedCount++;
       }
     }));
@@ -1383,6 +1404,12 @@ async function handleCsvUpload(event) {
       cartAssetTag: row['Cart Asset Tag'] || row['Cart'] || row['cartAssetTag'] || '',
       notes: row['Notes'] || row['notes'] || '',
       assetId: '',
+      serialNumber: '',
+      model: '',
+      locationId: '',
+      roomId: '',
+      status: '',
+      statusTypeId: '',
       pushStatus: 'Pending Lookup'
     }));
 
@@ -1409,6 +1436,12 @@ async function autoLinkCsvAssetIds() {
       const details = await fetchIiqAssetDetails({ assetTag: row.assetTag });
       if (details && details.assetId) {
         row.assetId = details.assetId;
+        row.serialNumber = details.serialNumber;
+        row.model = details.model;
+        row.locationId = details.locationId;
+        row.roomId = details.roomId;
+        row.status = details.status;
+        row.statusTypeId = details.statusTypeId;
         row.pushStatus = 'Ready to Push';
         linkedCount++;
       } else {
@@ -1597,6 +1630,12 @@ async function confirmAndPushCsvToIiq() {
         const details = await fetchIiqAssetDetails({ assetTag: row.assetTag });
         if (details && details.assetId) {
           row.assetId = details.assetId;
+          row.serialNumber = details.serialNumber;
+          row.model = details.model;
+          row.locationId = details.locationId;
+          row.roomId = details.roomId;
+          row.status = details.status;
+          row.statusTypeId = details.statusTypeId;
           row.pushStatus = 'Ready to Push';
         }
       }));
@@ -1709,13 +1748,14 @@ async function importCsvToLiveInventory() {
     batch.set(ref, {
       assetId: r.assetId || "",
       assetTag: r.assetTag || "",
-      serialNumber: "",
-      model: "",
-      status: "In Service",
+      serialNumber: r.serialNumber || "",
+      model: r.model || "",
+      status: r.status || "In Service",
+      statusTypeId: r.statusTypeId || "",
       campus: "",
-      locationId: "",
+      locationId: r.locationId || "",
       roomNo: r.roomNo || "",
-      roomId: "",
+      roomId: r.roomId || "",
       cartAssetTag: r.cartAssetTag || "",
       notes: r.teacher ? `Teacher: ${r.teacher}` : "",
       timestamp: Date.now()
