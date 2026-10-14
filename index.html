@@ -1230,45 +1230,44 @@ async function confirmAndPushSelectedToIiq() {
       alert(`Successfully synced ${validAssetIds.length} asset(s) location to Incident IQ!`);
 
     } else if (mode === 'status') {
-      const targetStatus = document.getElementById('massStatusVal').value;
-      if (!targetStatus) {
-        alert("Please select a target status.");
-        return;
-      }
-
-      const confirmMsg = `Push ${validAssetIds.length} device(s) to Incident IQ with Status: "${targetStatus}"?`;
+      const confirmMsg = `Push ${validAssetIds.length} device(s) to Incident IQ with their current table statuses?`;
       if (!confirm(confirmMsg)) return;
 
       btn.innerText = "Syncing to iiQ...";
 
-      const res = await fetch(IIQ_WORKER_PROXY_URL, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          action: "bulkUpdateStatus",
-          assetIds: validAssetIds,
-          assetTags: validAssetTags,
-          statusName: targetStatus
-        })
-      });
-      const result = await res.json();
-      console.log("iiQ Status worker response:", result);
+      // Push each valid record using its individual local status from the table
+      for (const rec of validRecords) {
+        const targetStatus = rec.status || "In Service";
+        const res = await fetch(IIQ_WORKER_PROXY_URL, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            action: "bulkUpdateStatus",
+            assetIds: [rec.assetId],
+            assetTags: [rec.assetTag],
+            statusName: targetStatus
+          })
+        });
+        const result = await res.json();
+        console.log("iiQ Status worker response:", result);
 
-      if (!res.ok || result.status > 299 || (result.details && result.details.some(d => !d.ok))) {
-        const errDetail = result.details ? result.details.find(d => !d.ok) : null;
-        const msg = (errDetail && errDetail.response && errDetail.response.Message) || result.error || "iiQ rejected request";
-        throw new Error(msg);
+        if (!res.ok || result.status > 299 || (result.details && result.details.some(d => !d.ok))) {
+          const errDetail = result.details ? result.details.find(d => !d.ok) : null;
+          const msg = (errDetail && errDetail.response && errDetail.response.Message) || result.error || "iiQ rejected request";
+          throw new Error(msg);
+        }
       }
 
       const batch = window.fs.writeBatch(window.db);
       validRecords.forEach(rec => {
         const ref = window.fs.doc(window.db, "inventory", rec.id);
-        const updatedNotes = rec.notes ? `${rec.notes} [Synced Status: ${targetStatus}]` : `[Synced Status: ${targetStatus}]`;
-        batch.update(ref, { status: targetStatus, notes: updatedNotes });
+        const currentStatus = rec.status || "In Service";
+        const updatedNotes = rec.notes ? `${rec.notes} [Synced Status: ${currentStatus}]` : `[Synced Status: ${currentStatus}]`;
+        batch.update(ref, { notes: updatedNotes });
       });
       await batch.commit();
 
-      alert(`Successfully synced ${validAssetIds.length} asset(s) status to Incident IQ!`);
+      alert(`Successfully synced status for ${validAssetIds.length} asset(s) to Incident IQ!`);
     }
 
   } catch (err) {
