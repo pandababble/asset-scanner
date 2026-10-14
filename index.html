@@ -257,7 +257,6 @@
       user-select: none;
     }
 
-    /* Resizable Column Grabbers */
     th.resizable {
       position: relative;
       touch-action: none;
@@ -333,7 +332,7 @@
     <span>Asset Tag Scanner</span>
     <div class="header-actions">
       <span class="sync-status" id="cloudStatus"><span class="sync-dot"></span> Connecting...</span>
-      <button class="btn-secondary" onclick="loadIiqSites()" style="font-size:0.85rem; padding: 0 12px; width: auto; height: 32px;">↻ Reload iiQ Locations</button>
+      <button class="btn-secondary" onclick="loadIiqLocations()" style="font-size:0.85rem; padding: 0 12px; width: auto; height: 32px;">↻ Reload iiQ Locations</button>
       <span class="badge" id="assetCount">0 Records</span>
     </div>
   </h1>
@@ -342,16 +341,16 @@
   <div class="card">
     <div class="grid-form">
       <div class="form-group">
-        <label for="campusSelect">1. iiQ Campus / Building</label>
-        <select id="campusSelect" onchange="onCampusChanged()">
-          <option value="">Loading Campuses from iiQ...</option>
+        <label for="campusSelect">1. iiQ Location / Campus</label>
+        <select id="campusSelect" onchange="onLocationChanged()">
+          <option value="">Loading Campuses...</option>
         </select>
       </div>
 
       <div class="form-group">
-        <label for="roomSelect">2. Target Room / Location</label>
+        <label for="roomSelect">2. Target Room</label>
         <select id="roomSelect">
-          <option value="">-- Choose Campus First --</option>
+          <option value="">-- Choose Location First --</option>
         </select>
       </div>
 
@@ -394,14 +393,14 @@
       <strong style="white-space: nowrap;">Mass Update (<span id="selectedCount">0</span>):</strong>
       <select id="massField" onchange="toggleMassInput()">
         <option value="status">Status</option>
-        <option value="location">Campus & Room</option>
+        <option value="location">Location & Room</option>
         <option value="cart">Cart Asset Tag</option>
         <option value="notes">Notes</option>
       </select>
       
       <select id="massStatusVal" style="display:inline-block;"></select>
       
-      <select id="massCampusVal" style="display:none;" onchange="onMassCampusChanged()"></select>
+      <select id="massCampusVal" style="display:none;" onchange="onMassLocationChanged()"></select>
       <select id="massRoomVal" style="display:none;"></select>
 
       <input type="text" id="massTextVal" placeholder="New value..." style="display:none;">
@@ -421,7 +420,7 @@
           <th class="resizable" style="width: 145px;">Serial Number<div class="resizer"></div></th>
           <th class="resizable" style="width: 260px;">Model<div class="resizer"></div></th>
           <th class="resizable" style="width: 160px;">Status<div class="resizer"></div></th>
-          <th class="resizable" style="width: 180px;">Campus / Building<div class="resizer"></div></th>
+          <th class="resizable" style="width: 180px;">Campus / Location<div class="resizer"></div></th>
           <th class="resizable" style="width: 140px;">Room No.<div class="resizer"></div></th>
           <th class="resizable" style="width: 130px;">Cart Asset Tag<div class="resizer"></div></th>
           <th class="resizable" style="width: 180px;">Notes / Sync<div class="resizer"></div></th>
@@ -453,8 +452,7 @@ const IIQ_STATUS_LIST = [
   "Stolen"
 ];
 
-let iiqSites = [];
-let iiqLocationsCache = {}; // Cache: { siteId: [ locations ] }
+let iiqLocationsCache = {}; // Cache: { locationId: [ rooms ] }
 
 let inventory = [];
 let selectedDocIds = new Set();
@@ -489,8 +487,8 @@ window.addEventListener('firebase-ready', () => {
   });
 });
 
-// Load Sites (Campuses) directly from Incident IQ
-async function loadIiqSites() {
+// Load 16 Locations from Incident IQ
+async function loadIiqLocations() {
   const campusSelect = document.getElementById('campusSelect');
   const massCampusVal = document.getElementById('massCampusVal');
   campusSelect.innerHTML = '<option value="">Loading Campuses...</option>';
@@ -499,56 +497,57 @@ async function loadIiqSites() {
     const res = await fetch(IIQ_WORKER_PROXY_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action: "getSites" })
+      body: JSON.stringify({ action: "getLocations" })
     });
     const data = await res.json();
-    iiqSites = Array.isArray(data) ? data : (data.Items || []);
+    const locations = Array.isArray(data) ? data : (data.Items || data.items || []);
 
-    campusSelect.innerHTML = '<option value="">-- Choose Campus / Building --</option>';
-    massCampusVal.innerHTML = '<option value="">-- Choose Campus / Building --</option>';
+    campusSelect.innerHTML = '<option value="">-- Choose Location / Campus --</option>';
+    massCampusVal.innerHTML = '<option value="">-- Choose Location / Campus --</option>';
 
-    iiqSites.forEach(site => {
-      const siteName = site.Name || site.SiteName || site.Label;
-      const siteId = site.SiteId || site.Id;
-      campusSelect.add(new Option(siteName, siteId));
-      massCampusVal.add(new Option(siteName, siteId));
+    locations.forEach(loc => {
+      const name = loc.Name || loc.LocationName;
+      const id = loc.LocationId || loc.Id;
+      campusSelect.add(new Option(name, id));
+      massCampusVal.add(new Option(name, id));
     });
 
   } catch (e) {
-    campusSelect.innerHTML = '<option value="">Error loading iiQ sites</option>';
-    console.warn("Could not load iiQ sites:", e.message);
+    campusSelect.innerHTML = '<option value="">Error loading iiQ locations</option>';
+    console.warn("Could not load iiQ locations:", e.message);
   }
 }
 
-// Fetch Rooms for the chosen Campus
-async function onCampusChanged() {
-  const siteId = document.getElementById('campusSelect').value;
+// Fetch Rooms for the selected Location
+async function onLocationChanged() {
+  const locationId = document.getElementById('campusSelect').value;
   const roomSelect = document.getElementById('roomSelect');
 
-  if (!siteId) {
-    roomSelect.innerHTML = '<option value="">-- Choose Campus First --</option>';
+  if (!locationId) {
+    roomSelect.innerHTML = '<option value="">-- Choose Location First --</option>';
     return;
   }
 
   roomSelect.innerHTML = '<option value="">Loading Rooms...</option>';
 
   try {
-    if (!iiqLocationsCache[siteId]) {
+    if (!iiqLocationsCache[locationId]) {
       const res = await fetch(IIQ_WORKER_PROXY_URL, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "getLocations", siteId: siteId })
+        body: JSON.stringify({ action: "getRooms", locationId: locationId })
       });
       const data = await res.json();
-      iiqLocationsCache[siteId] = Array.isArray(data) ? data : (data.Items || []);
+      iiqLocationsCache[locationId] = Array.isArray(data) ? data : (data.Items || data.items || []);
     }
 
-    const rooms = iiqLocationsCache[siteId];
+    const rooms = iiqLocationsCache[locationId];
     roomSelect.innerHTML = '<option value="">-- Choose Room / Location --</option>';
-    rooms.forEach(loc => {
-      const locName = loc.Name || loc.RoomNumber || loc.LocationName;
-      const locId = loc.LocationId || loc.Id;
-      roomSelect.add(new Option(locName, locId));
+    rooms.forEach(r => {
+      const roomName = r.Name || r.RoomNumber || r.Number;
+      const desc = r.Description ? ` (${r.Description})` : '';
+      const roomId = r.RoomId || r.Id;
+      roomSelect.add(new Option(`${roomName}${desc}`, roomId));
     });
 
   } catch (e) {
@@ -557,34 +556,35 @@ async function onCampusChanged() {
   }
 }
 
-// Mass update campus change handler
-async function onMassCampusChanged() {
-  const siteId = document.getElementById('massCampusVal').value;
+// Mass update location change handler
+async function onMassLocationChanged() {
+  const locationId = document.getElementById('massCampusVal').value;
   const roomSelect = document.getElementById('massRoomVal');
 
-  if (!siteId) {
-    roomSelect.innerHTML = '<option value="">-- Choose Campus First --</option>';
+  if (!locationId) {
+    roomSelect.innerHTML = '<option value="">-- Choose Location First --</option>';
     return;
   }
 
   roomSelect.innerHTML = '<option value="">Loading Rooms...</option>';
 
-  if (!iiqLocationsCache[siteId]) {
+  if (!iiqLocationsCache[locationId]) {
     const res = await fetch(IIQ_WORKER_PROXY_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action: "getLocations", siteId: siteId })
+      body: JSON.stringify({ action: "getRooms", locationId: locationId })
     });
     const data = await res.json();
-    iiqLocationsCache[siteId] = Array.isArray(data) ? data : (data.Items || []);
+    iiqLocationsCache[locationId] = Array.isArray(data) ? data : (data.Items || data.items || []);
   }
 
-  const rooms = iiqLocationsCache[siteId];
+  const rooms = iiqLocationsCache[locationId];
   roomSelect.innerHTML = '<option value="">-- Choose Room --</option>';
-  rooms.forEach(loc => {
-    const locName = loc.Name || loc.RoomNumber || loc.LocationName;
-    const locId = loc.LocationId || loc.Id;
-    roomSelect.add(new Option(locName, locId));
+  rooms.forEach(r => {
+    const roomName = r.Name || r.RoomNumber || r.Number;
+    const desc = r.Description ? ` (${r.Description})` : '';
+    const roomId = r.RoomId || r.Id;
+    roomSelect.add(new Option(`${roomName}${desc}`, roomId));
   });
 }
 
@@ -705,8 +705,8 @@ async function handleScanSubmit() {
 
   const campusName = campusSel.options[campusSel.selectedIndex].text;
   const roomName = roomSel.options[roomSel.selectedIndex].text;
-  const siteId = campusSel.value;
-  const locationId = roomSel.value;
+  const locationId = campusSel.value;
+  const roomId = roomSel.value;
 
   feedback.innerHTML = `<span>Querying Incident IQ for #${rawTag}...</span>`;
 
@@ -726,9 +726,9 @@ async function handleScanSubmit() {
     model: foundModel,
     status: foundStatus,
     campus: campusName,
-    siteId: siteId,
-    roomNo: roomName,
     locationId: locationId,
+    roomNo: roomName,
+    roomId: roomId,
     cartAssetTag: cartTag,
     notes: "",
     timestamp: Date.now()
@@ -890,7 +890,7 @@ async function applyMassUpdate() {
     const cSel = document.getElementById('massCampusVal');
     const rSel = document.getElementById('massRoomVal');
     if (!cSel.value || !rSel.value) {
-      alert("Please choose both a Campus and Room.");
+      alert("Please choose both a Location and Room.");
       return;
     }
     const cName = cSel.options[cSel.selectedIndex].text;
@@ -898,9 +898,9 @@ async function applyMassUpdate() {
     selectedDocIds.forEach(id => {
       batch.update(window.fs.doc(window.db, "inventory", id), {
         campus: cName,
-        siteId: cSel.value,
+        locationId: cSel.value,
         roomNo: rName,
-        locationId: rSel.value
+        roomId: rSel.value
       });
     });
   } else if (field === 'cart') {
@@ -918,7 +918,7 @@ async function applyMassUpdate() {
   await batch.commit();
 }
 
-// Confirmation & Mass Push to Incident IQ (Status OR Location)
+// Push to Incident IQ (Status or Location)
 async function confirmAndPushSelectedToIiq() {
   if (selectedDocIds.size === 0) return;
 
@@ -974,7 +974,7 @@ async function confirmAndPushSelectedToIiq() {
     const rSel = document.getElementById('massRoomVal');
 
     if (!cSel.value || !rSel.value) {
-      alert("Please select both a Campus and Room under Mass Update.");
+      alert("Please select both a Location and Room under Mass Update.");
       return;
     }
 
@@ -994,8 +994,8 @@ async function confirmAndPushSelectedToIiq() {
         body: JSON.stringify({
           action: "bulkUpdateLocation",
           assetIds: validAssetIds,
-          siteId: cSel.value,
-          locationId: rSel.value
+          locationId: cSel.value,
+          roomId: rSel.value
         })
       });
 
@@ -1005,9 +1005,9 @@ async function confirmAndPushSelectedToIiq() {
         const updatedNotes = rec.notes ? `${rec.notes} [Synced ${rName}]` : `[Synced ${rName}]`;
         batch.update(ref, { 
           campus: cName, 
-          siteId: cSel.value, 
+          locationId: cSel.value, 
           roomNo: rName, 
-          locationId: rSel.value, 
+          roomId: rSel.value, 
           notes: updatedNotes 
         });
       });
@@ -1021,7 +1021,7 @@ async function confirmAndPushSelectedToIiq() {
       btn.disabled = false;
     }
   } else {
-    alert("Please set the Mass Update dropdown to 'Status' or 'Campus & Room' to push to Incident IQ.");
+    alert("Please set the Mass Update dropdown to 'Status' or 'Location & Room' to push to Incident IQ.");
   }
 }
 
@@ -1151,7 +1151,7 @@ function makeTableResizable(table) {
 
 window.onload = () => {
   initStatusDropdowns();
-  loadIiqSites();
+  loadIiqLocations();
   const table = document.getElementById('inventoryTable');
   if (table) makeTableResizable(table);
 };
