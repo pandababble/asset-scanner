@@ -1152,7 +1152,7 @@ async function ensureAssetIdsLinked(records, btn) {
   return records.some(r => r.assetId);
 }
 
-// Push Scanner Tab Selection to Incident IQ with assetTags included
+// Push Scanner Tab Selection to Incident IQ with isolated payloads
 async function confirmAndPushSelectedToIiq() {
   if (selectedDocIds.size === 0) return;
 
@@ -1230,7 +1230,12 @@ async function confirmAndPushSelectedToIiq() {
       alert(`Successfully synced ${validAssetIds.length} asset(s) location to Incident IQ!`);
 
     } else if (mode === 'status') {
-      const targetStatus = document.getElementById('massStatusVal').value || "In Service";
+      const targetStatus = document.getElementById('massStatusVal').value;
+      if (!targetStatus) {
+        alert("Please select a target status.");
+        return;
+      }
+
       const confirmMsg = `Push ${validAssetIds.length} device(s) to Incident IQ with Status: "${targetStatus}"?`;
       if (!confirm(confirmMsg)) return;
 
@@ -1242,10 +1247,12 @@ async function confirmAndPushSelectedToIiq() {
         body: JSON.stringify({
           action: "bulkUpdateStatus",
           assetIds: validAssetIds,
+          assetTags: validAssetTags,
           statusName: targetStatus
         })
       });
       const result = await res.json();
+      console.log("iiQ Status worker response:", result);
 
       if (!res.ok || result.status > 299 || (result.details && result.details.some(d => !d.ok))) {
         const errDetail = result.details ? result.details.find(d => !d.ok) : null;
@@ -1256,7 +1263,7 @@ async function confirmAndPushSelectedToIiq() {
       const batch = window.fs.writeBatch(window.db);
       validRecords.forEach(rec => {
         const ref = window.fs.doc(window.db, "inventory", rec.id);
-        const updatedNotes = rec.notes ? `${rec.notes} [Synced ${targetStatus}]` : `[Synced ${targetStatus}]`;
+        const updatedNotes = rec.notes ? `${rec.notes} [Synced Status: ${targetStatus}]` : `[Synced Status: ${targetStatus}]`;
         batch.update(ref, { status: targetStatus, notes: updatedNotes });
       });
       await batch.commit();
@@ -1611,7 +1618,7 @@ function clearCsvStaging() {
   renderCsvTable();
 }
 
-// Push CSV Selection to Incident IQ with assetTags included
+// Push CSV Selection to Incident IQ with isolated payloads
 async function confirmAndPushCsvToIiq() {
   const currentFiltered = getFilteredCsvData();
   const targetRows = currentFiltered.filter(r => selectedCsvIndices.has(r.index));
@@ -1706,7 +1713,11 @@ async function confirmAndPushCsvToIiq() {
 
     } else if (mode === 'status') {
       const sSel = document.getElementById('csvMassStatusVal');
-      const targetStatus = sSel.value || "In Service";
+      const targetStatus = sSel.value;
+      if (!targetStatus) {
+        alert("Please select a target status.");
+        return;
+      }
 
       const confirmMsg = `Push ${validAssetIds.length} asset(s) to Incident IQ?\n\nTarget Status: "${targetStatus}"`;
       if (!confirm(confirmMsg)) return;
@@ -1719,6 +1730,7 @@ async function confirmAndPushCsvToIiq() {
         body: JSON.stringify({
           action: "bulkUpdateStatus",
           assetIds: validAssetIds,
+          assetTags: validAssetTags,
           statusName: targetStatus
         })
       });
