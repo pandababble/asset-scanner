@@ -120,10 +120,9 @@
       border: 1px solid var(--border); 
     }
 
-    /* Auto-Resizing Flexible Grid */
     .grid-form { 
       display: grid; 
-      grid-template-columns: repeat(auto-fit, minmax(clamp(150px, 20vw, 220px), 1fr)); 
+      grid-template-columns: repeat(auto-fit, minmax(clamp(150px, 18vw, 220px), 1fr)); 
       gap: clamp(8px, 1.2vw, 12px); 
       align-items: end; 
     }
@@ -163,7 +162,6 @@
       letter-spacing: 1px; 
     }
 
-    /* Buttons with fluid response */
     button { 
       cursor: pointer; 
       font-weight: 600; 
@@ -179,11 +177,11 @@
     .btn-primary { background: var(--primary); color: white; }
     .btn-primary:hover { background: var(--primary-dark); }
     .btn-success { background: var(--accent); color: white; }
+    .btn-success:hover { background: #1b5e20; }
     .btn-danger { background: var(--danger); color: white; }
     .btn-secondary { background: #eceff1; color: #37474f; border: 1px solid var(--border); }
     .btn-secondary:hover { background: #cfd8dc; }
 
-    /* Auto-Resizing Actions Bar */
     .actions-bar { 
       display: flex; 
       flex-wrap: wrap; 
@@ -197,14 +195,9 @@
       gap: 8px; 
       flex: 1 1 260px; 
     }
-    .filter-group input {
-      flex: 1 1 180px;
-    }
-    .filter-group button {
-      flex: 0 1 auto;
-      width: auto;
-      padding: 0 14px;
-    }
+    .filter-group input { flex: 1 1 180px; }
+    .filter-group button { flex: 0 1 auto; width: auto; padding: 0 14px; }
+    
     .btn-group { 
       display: flex; 
       gap: 8px; 
@@ -212,12 +205,8 @@
       flex: 1 1 auto;
       justify-content: flex-end;
     }
-    .btn-group button {
-      flex: 1 1 auto;
-      min-width: 110px;
-    }
+    .btn-group button { flex: 1 1 auto; min-width: 110px; }
 
-    /* Auto-Resizing Mass Bar */
     .mass-bar { 
       background: #fff8e1; 
       border: 1px dashed #ffb300; 
@@ -229,16 +218,8 @@
       gap: 8px; 
       flex-wrap: wrap; 
     }
-    .mass-bar select, .mass-bar input {
-      flex: 1 1 160px;
-      height: 38px;
-    }
-    .mass-bar button {
-      flex: 0 1 auto;
-      width: auto;
-      height: 38px;
-      padding: 0 18px;
-    }
+    .mass-bar select, .mass-bar input { flex: 1 1 160px; height: 38px; }
+    .mass-bar button { flex: 0 1 auto; width: auto; height: 38px; padding: 0 18px; }
     
     .table-container { 
       overflow-x: auto; 
@@ -304,32 +285,97 @@
       display: none; 
       position: fixed; 
       top: 0; left: 0; right: 0; bottom: 0; 
-      background: rgba(0, 0, 0, 0.45); 
+      background: rgba(0, 0, 0, 0.5); 
       z-index: 100; 
       justify-content: center; 
       align-items: center; 
-      padding: clamp(8px, 2vw, 16px); 
+      padding: 16px; 
     }
     .modal-overlay.active { display: flex; }
     .modal-card { 
       background: #ffffff; 
       border-radius: 10px; 
-      max-width: 760px; 
+      max-width: 780px; 
       width: 100%; 
       max-height: 90vh; 
       display: flex; 
       flex-direction: column; 
-      box-shadow: 0 10px 25px rgba(0,0,0,0.2); 
+      box-shadow: 0 10px 25px rgba(0,0,0,0.25); 
+      overflow: hidden;
     }
     .modal-header { 
-      padding: 14px 16px; 
+      padding: 14px 18px; 
       border-bottom: 1px solid var(--border); 
       display: flex; 
       justify-content: space-between; 
       align-items: center; 
     }
     .modal-header h2 { margin: 0; font-size: clamp(1rem, 1.4vw, 1.15rem); color: var(--primary-dark); }
-    .modal-body { padding: 14px 16px; overflow-y: auto; flex: 1; -webkit-overflow-scrolling: touch; }
+    .modal-body { padding: 16px; overflow-y: auto; flex: 1; -webkit-overflow-scrolling: touch; }
+    
+    /* Dedicated Room Form Section (Fixed layout) */
+    .loc-add-box {
+      background: #f8fafc;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 12px;
+      margin-bottom: 14px;
+    }
+    .loc-add-box .box-title {
+      font-size: 0.8rem;
+      font-weight: 700;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 8px;
+      display: block;
+    }
+    .loc-inputs-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: flex-end;
+    }
+    .loc-inputs-row .loc-col {
+      flex: 1 1 160px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .loc-inputs-row .loc-btn-col {
+      flex: 0 0 auto;
+      min-width: 120px;
+    }
+    .loc-inputs-row input {
+      height: 38px;
+      font-size: 0.9rem;
+    }
+    .loc-inputs-row button {
+      height: 38px;
+      font-size: 0.9rem;
+      padding: 0 16px;
+    }
+
+    .modal-toolbar { 
+      display: flex; 
+      justify-content: space-between; 
+      align-items: center; 
+      margin-bottom: 8px; 
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .modal-table-wrap {
+      max-height: 360px; 
+      overflow-y: auto; 
+      border: 1px solid var(--border); 
+      border-radius: 6px; 
+      -webkit-overflow-scrolling: touch;
+    }
+    .modal-table-wrap table {
+      min-width: 100%;
+    }
+
     .modal-footer { 
       padding: 12px 16px; 
       border-top: 1px solid var(--border); 
@@ -342,29 +388,8 @@
     }
     .modal-footer button {
       flex: 1 1 auto;
-      max-width: 280px;
-    }
-    .loc-add-form { 
-      display: grid; 
-      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); 
-      gap: 8px; 
-      margin-bottom: 14px; 
-      align-items: end; 
-      background: #f8fafc; 
-      padding: 12px; 
-      border-radius: 6px; 
-      border: 1px solid var(--border); 
-    }
-    .loc-add-form button {
-      height: clamp(38px, 4.5vw, 44px);
-    }
-    .modal-toolbar { 
-      display: flex; 
-      justify-content: space-between; 
-      align-items: center; 
-      margin-bottom: 8px; 
-      flex-wrap: wrap;
-      gap: 8px;
+      max-width: 260px;
+      height: 38px;
     }
   </style>
 </head>
@@ -472,20 +497,27 @@
         <button class="btn-secondary" onclick="closeLocationManager()" style="padding: 0; width: 32px; height: 32px; font-size: 1rem;">✕</button>
       </div>
       <div class="modal-body">
-        <div class="loc-add-form">
-          <div class="form-group">
-            <label>Room No.</label>
-            <input type="text" id="newRoomNo" placeholder="e.g. E411">
+        
+        <!-- Redesigned Room Addition Box (No Overflow/Clipping) -->
+        <div class="loc-add-box">
+          <span class="box-title">Add New Room Location</span>
+          <div class="loc-inputs-row">
+            <div class="loc-col" style="flex: 1 1 110px;">
+              <label>Room No.</label>
+              <input type="text" id="newRoomNo" placeholder="e.g. E411">
+            </div>
+            <div class="loc-col" style="flex: 2 1 180px;">
+              <label>Teacher</label>
+              <input type="text" id="newTeacher" placeholder="Last, First">
+            </div>
+            <div class="loc-col" style="flex: 1.5 1 150px;">
+              <label>Class / Grade</label>
+              <input type="text" id="newClass" placeholder="e.g. 4th Grade">
+            </div>
+            <div class="loc-btn-col">
+              <button class="btn-success" onclick="addNewLocation()">+ Add Room</button>
+            </div>
           </div>
-          <div class="form-group">
-            <label>Teacher</label>
-            <input type="text" id="newTeacher" placeholder="Last, First">
-          </div>
-          <div class="form-group">
-            <label>Class / Grade</label>
-            <input type="text" id="newClass" placeholder="e.g. 4th Grade">
-          </div>
-          <button class="btn-success" onclick="addNewLocation()">+ Add Room</button>
         </div>
 
         <div class="modal-toolbar">
@@ -497,16 +529,16 @@
           </button>
         </div>
 
-        <div style="max-height: 380px; overflow-y: auto; border: 1px solid var(--border); border-radius: 6px; -webkit-overflow-scrolling: touch;">
-          <table style="min-width: 100%;">
+        <div class="modal-table-wrap">
+          <table>
             <thead>
               <tr>
                 <th style="width: 38px; text-align: center;">
                   <input type="checkbox" id="selectAllLocations" onclick="toggleSelectAllLocations(this.checked)">
                 </th>
-                <th style="width: 90px;">Room No.</th>
+                <th style="width: 100px;">Room No.</th>
                 <th>Teacher</th>
-                <th style="width: 120px;">Class</th>
+                <th style="width: 130px;">Class</th>
                 <th style="width: 60px; text-align: center;">Delete</th>
               </tr>
             </thead>
@@ -515,8 +547,8 @@
         </div>
       </div>
       <div class="modal-footer">
-        <button class="btn-danger" onclick="resetLocationsToDefault()" style="font-size:0.8rem; height: 36px;">Reset to Default</button>
-        <button class="btn-primary" onclick="closeLocationManager()" style="height: 36px;">Done</button>
+        <button class="btn-danger" onclick="resetLocationsToDefault()" style="font-size:0.8rem;">Reset to Default</button>
+        <button class="btn-primary" onclick="closeLocationManager()">Done</button>
       </div>
     </div>
   </div>
