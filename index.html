@@ -437,7 +437,7 @@
         </div>
       </div>
 
-      <!-- Mass Update Bar -->
+      <!-- Scanner Mass Update Bar -->
       <div id="massUpdateBar" class="mass-bar">
         <strong style="white-space: nowrap;">Mass Update (<span id="selectedCount">0</span>):</strong>
         <select id="massField" onchange="toggleMassInput()">
@@ -505,7 +505,7 @@
             <option value="assetTag">Asset Tag</option>
           </select>
 
-          <!-- Dropdown 2: Value Select -->
+          <!-- Dropdown 2: Dynamic Values -->
           <select id="csvFilterValue" onchange="onCsvFilterValueChanged()" style="flex:1 1 180px;">
             <option value="">All Values</option>
           </select>
@@ -1159,15 +1159,15 @@ async function confirmAndPushSelectedToIiq() {
       const cSel = document.getElementById('massCampusVal');
       const rSel = document.getElementById('massRoomVal');
 
-      if (!cSel.value || !rSel.value) {
-        alert("Please select both a Location and Room under Mass Update.");
+      if (!cSel.value) {
+        alert("Please select at least an iiQ Location.");
         return;
       }
 
       const cName = cSel.options[cSel.selectedIndex].text;
-      const rName = rSel.options[rSel.selectedIndex].text;
+      const rName = rSel.value ? rSel.options[rSel.selectedIndex].text : '';
 
-      const confirmMsg = `Push ${validAssetIds.length} device(s) to Incident IQ with Location: "${cName} - ${rName}"?`;
+      const confirmMsg = `Push ${validAssetIds.length} device(s) to Incident IQ with Location: "${cName}${rName ? ' - ' + rName : ''}"?`;
       if (!confirm(confirmMsg)) return;
 
       btn.innerText = "Syncing to iiQ...";
@@ -1179,7 +1179,7 @@ async function confirmAndPushSelectedToIiq() {
           action: "bulkUpdateLocation",
           assetIds: validAssetIds,
           locationId: cSel.value,
-          roomId: rSel.value
+          roomId: rSel.value || null
         })
       });
       const result = await res.json();
@@ -1191,12 +1191,12 @@ async function confirmAndPushSelectedToIiq() {
       const batch = window.fs.writeBatch(window.db);
       validRecords.forEach(rec => {
         const ref = window.fs.doc(window.db, "inventory", rec.id);
-        const updatedNotes = rec.notes ? `${rec.notes} [Synced ${rName}]` : `[Synced ${rName}]`;
+        const updatedNotes = rec.notes ? `${rec.notes} [Synced ${rName || cName}]` : `[Synced ${rName || cName}]`;
         batch.update(ref, { 
           campus: cName, 
           locationId: cSel.value, 
           roomNo: rName, 
-          roomId: rSel.value, 
+          roomId: rSel.value || '', 
           notes: updatedNotes 
         });
       });
@@ -1572,7 +1572,6 @@ function clearCsvStaging() {
   renderCsvTable();
 }
 
-// Push CSV Selection to Incident IQ (Location or Status)
 async function confirmAndPushCsvToIiq() {
   const currentFiltered = getFilteredCsvData();
   const targetRows = currentFiltered.filter(r => selectedCsvIndices.has(r.index));
@@ -1615,15 +1614,15 @@ async function confirmAndPushCsvToIiq() {
       const cSel = document.getElementById('csvMassCampusVal');
       const rSel = document.getElementById('csvMassRoomVal');
 
-      if (!cSel.value || !rSel.value) {
-        alert("Please choose both an iiQ Campus/Location and Target Room.");
+      if (!cSel.value) {
+        alert("Please select an iiQ Location / Campus.");
         return;
       }
 
       const cName = cSel.options[cSel.selectedIndex].text;
-      const rName = rSel.options[rSel.selectedIndex].text;
+      const rName = rSel.value ? rSel.options[rSel.selectedIndex].text : '';
 
-      const confirmMsg = `Push ${validAssetIds.length} asset(s) to Incident IQ?\n\nTarget Location: ${cName} - ${rName}`;
+      const confirmMsg = `Push ${validAssetIds.length} asset(s) to Incident IQ?\n\nTarget Location: ${cName}${rName ? ' - ' + rName : ''}`;
       if (!confirm(confirmMsg)) return;
 
       btn.innerText = "Syncing to iiQ...";
@@ -1635,7 +1634,7 @@ async function confirmAndPushCsvToIiq() {
           action: "bulkUpdateLocation",
           assetIds: validAssetIds,
           locationId: cSel.value,
-          roomId: rSel.value
+          roomId: rSel.value || null
         })
       });
 
@@ -1645,8 +1644,8 @@ async function confirmAndPushCsvToIiq() {
       }
 
       validRows.forEach(row => {
-        row.roomNo = rName;
-        row.pushStatus = `Synced (${rName})`;
+        if (rName) row.roomNo = rName;
+        row.pushStatus = `Synced (${rName || cName})`;
       });
 
       renderCsvTable();
