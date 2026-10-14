@@ -234,7 +234,7 @@
     table { 
       width: 100%; 
       border-collapse: collapse; 
-      min-width: 1050px; 
+      min-width: 950px; 
       font-size: clamp(0.8rem, 1vw, 0.9rem); 
     }
     th, td { 
@@ -458,20 +458,19 @@
     </div>
   </div>
 
-  <!-- Main Repository Table: Serial Number & iiQ Assignee populated -->
+  <!-- Main Repository Table: Cleaned without iiQ Assignee -->
   <div class="table-container">
     <table>
       <thead>
         <tr>
           <th style="width: 38px; text-align: center;"><input type="checkbox" id="selectAll" onclick="toggleSelectAll(this.checked)"></th>
-          <th style="width: 105px;">Asset Tag</th>
-          <th style="width: 140px;">Serial Number</th>
-          <th style="width: 180px;">Model</th>
-          <th style="width: 85px;">Room No.</th>
-          <th style="width: 150px;">Teacher</th>
-          <th style="width: 100px;">Class</th>
-          <th style="width: 120px;">Cart Asset Tag</th>
-          <th style="width: 140px;">iiQ Assignee</th>
+          <th style="width: 110px;">Asset Tag</th>
+          <th style="width: 150px;">Serial Number</th>
+          <th style="width: 200px;">Model</th>
+          <th style="width: 90px;">Room No.</th>
+          <th style="width: 160px;">Teacher</th>
+          <th style="width: 110px;">Class</th>
+          <th style="width: 130px;">Cart Asset Tag</th>
           <th>Notes</th>
           <th style="width: 65px; text-align: center;">Actions</th>
         </tr>
@@ -745,8 +744,7 @@ async function fetchIiqAssetDetails(assetTag) {
       
       return {
         serialNumber: serial,
-        model: model,
-        iiqAssignee: serial // Display serial number under iiQ Assignee column
+        model: model
       };
     }
   } catch (err) {
@@ -783,13 +781,11 @@ async function handleScanSubmit() {
 
   const foundSerial = (iiqData && iiqData.serialNumber) ? iiqData.serialNumber : "";
   const foundModel = (iiqData && iiqData.model) ? iiqData.model : "";
-  const foundAssignee = (iiqData && iiqData.iiqAssignee) ? iiqData.iiqAssignee : foundSerial;
 
   const record = {
     assetTag: rawTag,
     serialNumber: foundSerial,
     model: foundModel,
-    iiqAssignee: foundAssignee,
     roomNo: loc["Room No."],
     teacher: loc["Teacher"],
     className: loc["Class"],
@@ -813,13 +809,11 @@ async function handleScanSubmit() {
   }
 }
 
-function renderTable() {
+function getFilteredData() {
   const query = document.getElementById('searchInput').value.trim().toLowerCase();
   const selectedRoomFilter = document.getElementById('filterRoomSelect').value.trim();
-  const tbody = document.getElementById('inventoryBody');
-  tbody.innerHTML = '';
 
-  const filtered = inventory.filter(item => {
+  return inventory.filter(item => {
     if (selectedRoomFilter && (item.roomNo || '').trim() !== selectedRoomFilter) {
       return false;
     }
@@ -829,14 +823,22 @@ function renderTable() {
       const matchTag = item.assetTag && item.assetTag.toLowerCase().includes(query);
       const matchSerial = item.serialNumber && item.serialNumber.toLowerCase().includes(query);
       const matchModel = item.model && item.model.toLowerCase().includes(query);
-      const matchAssignee = item.iiqAssignee && item.iiqAssignee.toLowerCase().includes(query);
       const matchNotes = item.notes && item.notes.toLowerCase().includes(query);
-      if (!matchTeacher && !matchRoom && !matchTag && !matchSerial && !matchModel && !matchAssignee && !matchNotes) return false;
+      if (!matchTeacher && !matchRoom && !matchTag && !matchSerial && !matchModel && !matchNotes) return false;
     }
     return true;
   });
+}
 
+function renderTable() {
+  const filtered = getFilteredData();
+  const tbody = document.getElementById('inventoryBody');
+  tbody.innerHTML = '';
+
+  const selectedRoomFilter = document.getElementById('filterRoomSelect').value.trim();
+  const query = document.getElementById('searchInput').value.trim();
   const countBadge = document.getElementById('assetCount');
+  
   if (selectedRoomFilter || query) {
     countBadge.innerText = `${filtered.length} / ${inventory.length} Records`;
   } else {
@@ -855,7 +857,6 @@ function renderTable() {
       <td><input class="editable-input" value="${escapeHtml(item.teacher)}" onchange="updateRowField('${item.id}', 'teacher', this.value)"></td>
       <td><input class="editable-input" value="${escapeHtml(item.className)}" onchange="updateRowField('${item.id}', 'className', this.value)"></td>
       <td><input class="editable-input" value="${escapeHtml(item.cartAssetTag)}" onchange="updateRowField('${item.id}', 'cartAssetTag', this.value)"></td>
-      <td><input class="editable-input" value="${escapeHtml(item.iiqAssignee || '')}" placeholder="--" onchange="updateRowField('${item.id}', 'iiqAssignee', this.value)"></td>
       <td><input class="editable-input" value="${escapeHtml(item.notes)}" placeholder="Tap to add notes..." onchange="updateRowField('${item.id}', 'notes', this.value)"></td>
       <td style="text-align:center;">
         <button class="btn-danger row-action" onclick="deleteRow('${item.id}')">Del</button>
@@ -894,10 +895,11 @@ function toggleSelect(docId, isChecked) {
 }
 
 function toggleSelectAll(isChecked) {
+  const currentItems = getFilteredData();
   if (isChecked) {
-    inventory.forEach(item => selectedDocIds.add(item.id));
+    currentItems.forEach(item => selectedDocIds.add(item.id));
   } else {
-    selectedDocIds.clear();
+    currentItems.forEach(item => selectedDocIds.delete(item.id));
   }
   renderTable();
 }
@@ -907,7 +909,9 @@ function updateMassBar() {
   const countSpan = document.getElementById('selectedCount');
   countSpan.innerText = selectedDocIds.size;
   bar.style.display = selectedDocIds.size > 0 ? 'flex' : 'none';
-  document.getElementById('selectAll').checked = (inventory.length > 0 && selectedDocIds.size === inventory.length);
+  
+  const currentItems = getFilteredData();
+  document.getElementById('selectAll').checked = (currentItems.length > 0 && currentItems.every(i => selectedDocIds.has(i.id)));
 }
 
 function toggleMassInput() {
@@ -1091,17 +1095,25 @@ async function resetLocationsToDefault() {
 }
 
 function exportData(format) {
-  if (inventory.length === 0) {
-    alert("Repository is empty.");
+  // Determine dataset: Selected items take highest priority, then filtered items, then all items
+  let targetData = [];
+  if (selectedDocIds.size > 0) {
+    targetData = inventory.filter(item => selectedDocIds.has(item.id));
+  } else {
+    targetData = getFilteredData();
+  }
+
+  if (targetData.length === 0) {
+    alert("No records available to export.");
     return;
   }
 
   let content = "";
-  let filename = `asset_inventory_${new Date().toISOString().slice(0,10)}`;
+  let filename = `asset_scans_${new Date().toISOString().slice(0,10)}`;
   let mimeType = "";
 
   if (format === 'json') {
-    content = JSON.stringify(inventory.map(({assetTag, serialNumber, model, roomNo, teacher, className, cartAssetTag, iiqAssignee, notes}) => ({
+    content = JSON.stringify(targetData.map(({assetTag, serialNumber, model, roomNo, teacher, className, cartAssetTag, notes}) => ({
       "Asset Tag": assetTag,
       "Serial Number": serialNumber || "",
       "Model": model || "",
@@ -1109,14 +1121,13 @@ function exportData(format) {
       "Teacher": teacher,
       "Class": className,
       "Cart Asset Tag": cartAssetTag,
-      "iiQ Assignee": iiqAssignee || "",
       "Notes": notes
     })), null, 2);
     filename += ".json";
     mimeType = "application/json";
   } else {
-    const headers = ["Asset Tag", "Serial Number", "Model", "Room No.", "Teacher", "Class", "Cart Asset Tag", "iiQ Assignee", "Notes"];
-    const rows = inventory.map(item => [
+    const headers = ["Asset Tag", "Serial Number", "Model", "Room No.", "Teacher", "Class", "Cart Asset Tag", "Notes"];
+    const rows = targetData.map(item => [
       `"${item.assetTag || ''}"`,
       `"${item.serialNumber || ''}"`,
       `"${item.model || ''}"`,
@@ -1124,7 +1135,6 @@ function exportData(format) {
       `"${(item.teacher || '').replace(/"/g, '""')}"`,
       `"${(item.className || '').replace(/"/g, '""')}"`,
       `"${item.cartAssetTag || ''}"`,
-      `"${(item.iiqAssignee || '').replace(/"/g, '""')}"`,
       `"${(item.notes || '').replace(/"/g, '""')}"`
     ]);
     content = [headers.join(','), ...rows.map(r => r.join(','))].join('\r\n');
