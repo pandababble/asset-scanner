@@ -220,8 +220,8 @@
       gap: 8px; 
       flex-wrap: wrap; 
     }
-    .mass-bar select, .mass-bar input { flex: 1 1 160px; height: 38px; }
-    .mass-bar button { flex: 0 1 auto; width: auto; height: 38px; padding: 0 18px; }
+    .mass-bar select, .mass-bar input { flex: 1 1 150px; height: 38px; }
+    .mass-bar button { flex: 0 1 auto; width: auto; height: 38px; padding: 0 16px; }
     
     .table-container { 
       overflow-x: auto; 
@@ -234,7 +234,7 @@
     table { 
       width: 100%; 
       border-collapse: collapse; 
-      min-width: 1100px; 
+      min-width: 1150px; 
       font-size: clamp(0.8rem, 1vw, 0.9rem); 
       table-layout: fixed;
     }
@@ -256,23 +256,34 @@
       border-bottom: 2px solid var(--border); 
       user-select: none;
     }
-    
-    /* Resizable Header Grabber */
+
+    /* Resizable Column Grabbers */
     th.resizable {
       position: relative;
+      touch-action: none;
     }
     .resizer {
       position: absolute;
       top: 0;
       right: 0;
-      width: 6px;
+      width: 14px;
       cursor: col-resize;
       user-select: none;
       height: 100%;
-      z-index: 3;
+      z-index: 10;
     }
-    .resizer:hover, .resizing {
+    .resizer::after {
+      content: "";
+      position: absolute;
+      right: 2px;
+      top: 25%;
+      height: 50%;
+      width: 2px;
+      background-color: #b0bec5;
+    }
+    .resizer:hover::after, .resizing::after {
       background-color: var(--primary);
+      width: 3px;
     }
 
     tr:hover { background-color: #f8fafc; }
@@ -314,102 +325,6 @@
     }
     .status-ok { color: var(--accent); }
     .status-warn { color: var(--danger); }
-
-    /* Modal Styling */
-    .modal-overlay { 
-      display: none; 
-      position: fixed; 
-      top: 0; left: 0; right: 0; bottom: 0; 
-      background: rgba(0, 0, 0, 0.5); 
-      z-index: 100; 
-      justify-content: center; 
-      align-items: center; 
-      padding: 16px; 
-    }
-    .modal-overlay.active { display: flex; }
-    .modal-card { 
-      background: #ffffff; 
-      border-radius: 10px; 
-      max-width: 780px; 
-      width: 100%; 
-      max-height: 90vh; 
-      display: flex; 
-      flex-direction: column; 
-      box-shadow: 0 10px 25px rgba(0,0,0,0.25); 
-      overflow: hidden;
-    }
-    .modal-header { 
-      padding: 14px 18px; 
-      border-bottom: 1px solid var(--border); 
-      display: flex; 
-      justify-content: space-between; 
-      align-items: center; 
-    }
-    .modal-header h2 { margin: 0; font-size: clamp(1rem, 1.4vw, 1.15rem); color: var(--primary-dark); }
-    .modal-body { padding: 16px; overflow-y: auto; flex: 1; -webkit-overflow-scrolling: touch; }
-    
-    .loc-add-box {
-      background: #f8fafc;
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      padding: 12px;
-      margin-bottom: 14px;
-    }
-    .loc-add-box .box-title {
-      font-size: 0.8rem;
-      font-weight: 700;
-      color: var(--text-muted);
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-      margin-bottom: 8px;
-      display: block;
-    }
-    .loc-inputs-row {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 10px;
-      align-items: flex-end;
-    }
-    .loc-inputs-row .loc-col {
-      flex: 1 1 160px;
-      display: flex;
-      flex-direction: column;
-      gap: 4px;
-    }
-    .loc-inputs-row .loc-btn-col {
-      flex: 0 0 auto;
-      min-width: 120px;
-    }
-    .loc-inputs-row input { height: 38px; font-size: 0.9rem; }
-    .loc-inputs-row button { height: 38px; font-size: 0.9rem; padding: 0 16px; }
-
-    .modal-toolbar { 
-      display: flex; 
-      justify-content: space-between; 
-      align-items: center; 
-      margin-bottom: 8px; 
-      flex-wrap: wrap;
-      gap: 8px; 
-    }
-    .modal-table-wrap {
-      max-height: 360px; 
-      overflow-y: auto; 
-      border: 1px solid var(--border); 
-      border-radius: 6px; 
-      -webkit-overflow-scrolling: touch;
-    }
-    .modal-table-wrap table { min-width: 100%; table-layout: auto; }
-    .modal-footer { 
-      padding: 12px 16px; 
-      border-top: 1px solid var(--border); 
-      display: flex; 
-      justify-content: space-between; 
-      align-items: center; 
-      background: #fafafa; 
-      flex-wrap: wrap; 
-      gap: 8px; 
-    }
-    .modal-footer button { flex: 1 1 auto; max-width: 260px; height: 38px; }
   </style>
 </head>
 <body>
@@ -418,38 +333,35 @@
     <span>Asset Tag Scanner</span>
     <div class="header-actions">
       <span class="sync-status" id="cloudStatus"><span class="sync-dot"></span> Connecting...</span>
-      <button class="btn-secondary" onclick="openLocationManager()" style="font-size:0.85rem; padding: 0 12px; width: auto; height: 32px;">Manage Rooms</button>
+      <button class="btn-secondary" onclick="loadIiqSites()" style="font-size:0.85rem; padding: 0 12px; width: auto; height: 32px;">↻ Reload iiQ Locations</button>
       <span class="badge" id="assetCount">0 Records</span>
     </div>
   </h1>
 
-  <!-- Top Configuration & Scanner -->
+  <!-- Top Configuration: Dynamic iiQ Campus & Room Selection -->
   <div class="card">
     <div class="grid-form">
       <div class="form-group">
-        <label for="roomSelect">1. Target Room</label>
-        <select id="roomSelect" onchange="syncLocationDetails()">
-          <option value="">-- Choose Room --</option>
+        <label for="campusSelect">1. iiQ Campus / Building</label>
+        <select id="campusSelect" onchange="onCampusChanged()">
+          <option value="">Loading Campuses from iiQ...</option>
         </select>
       </div>
 
       <div class="form-group">
-        <label for="teacherDisplay">Teacher</label>
-        <input type="text" id="teacherDisplay" placeholder="Auto-filled" readonly style="background:#f5f5f5;">
+        <label for="roomSelect">2. Target Room / Location</label>
+        <select id="roomSelect">
+          <option value="">-- Choose Campus First --</option>
+        </select>
       </div>
 
       <div class="form-group">
-        <label for="classDisplay">Class</label>
-        <input type="text" id="classDisplay" placeholder="Auto-filled" readonly style="background:#f5f5f5;">
-      </div>
-
-      <div class="form-group">
-        <label for="cartAssetTag">2. Cart Asset Tag</label>
+        <label for="cartAssetTag">3. Cart Asset Tag</label>
         <input type="text" id="cartAssetTag" placeholder="e.g. CART-01">
       </div>
 
       <div class="form-group">
-        <label for="scanInput">3. Scan 6-Digit Asset</label>
+        <label for="scanInput">4. Scan 6-Digit Asset</label>
         <input type="text" id="scanInput" class="scanner-field" placeholder="Ready to scan..." autofocus autocomplete="off" inputmode="numeric">
       </div>
 
@@ -460,14 +372,14 @@
     <div id="scanFeedback" class="status-msg"></div>
   </div>
 
-  <!-- Data Management Bar with Dedicated Room Filter -->
+  <!-- Filter & Export Controls -->
   <div class="card">
     <div class="actions-bar">
       <div class="filter-group">
         <select id="filterRoomSelect" onchange="renderTable()">
           <option value="">All Rooms</option>
         </select>
-        <input type="text" id="searchInput" placeholder="Search Teacher, Tag, Serial, Status, or Model..." oninput="renderTable()">
+        <input type="text" id="searchInput" placeholder="Search Tag, Serial, Status, Room, Model..." oninput="renderTable()">
         <button class="btn-secondary" onclick="clearFilters()">Clear</button>
       </div>
       <div class="btn-group">
@@ -477,23 +389,29 @@
       </div>
     </div>
 
-    <!-- Mass Update Bar -->
+    <!-- Mass Update Bar: Status or iiQ Location/Room -->
     <div id="massUpdateBar" class="mass-bar">
       <strong style="white-space: nowrap;">Mass Update (<span id="selectedCount">0</span>):</strong>
       <select id="massField" onchange="toggleMassInput()">
-        <option value="room">Room, Teacher & Class</option>
         <option value="status">Status</option>
+        <option value="location">Campus & Room</option>
         <option value="cart">Cart Asset Tag</option>
         <option value="notes">Notes</option>
       </select>
-      <select id="massRoomVal" style="display:inline-block;"></select>
-      <select id="massStatusVal" style="display:none;"></select>
+      
+      <select id="massStatusVal" style="display:inline-block;"></select>
+      
+      <select id="massCampusVal" style="display:none;" onchange="onMassCampusChanged()"></select>
+      <select id="massRoomVal" style="display:none;"></select>
+
       <input type="text" id="massTextVal" placeholder="New value..." style="display:none;">
-      <button class="btn-primary" onclick="applyMassUpdate()">Apply</button>
+      
+      <button class="btn-primary" onclick="applyMassUpdate()">Apply Local</button>
+      <button class="btn-success" id="btnPushIiq" onclick="confirmAndPushSelectedToIiq()">Push Selected to iiQ</button>
     </div>
   </div>
 
-  <!-- Main Repository Table: Resizable columns & Status dropdown -->
+  <!-- Main Repository Table -->
   <div class="table-container">
     <table id="inventoryTable">
       <thead>
@@ -503,11 +421,10 @@
           <th class="resizable" style="width: 145px;">Serial Number<div class="resizer"></div></th>
           <th class="resizable" style="width: 260px;">Model<div class="resizer"></div></th>
           <th class="resizable" style="width: 160px;">Status<div class="resizer"></div></th>
-          <th class="resizable" style="width: 90px;">Room No.<div class="resizer"></div></th>
-          <th class="resizable" style="width: 160px;">Teacher<div class="resizer"></div></th>
-          <th class="resizable" style="width: 110px;">Class<div class="resizer"></div></th>
+          <th class="resizable" style="width: 180px;">Campus / Building<div class="resizer"></div></th>
+          <th class="resizable" style="width: 140px;">Room No.<div class="resizer"></div></th>
           <th class="resizable" style="width: 130px;">Cart Asset Tag<div class="resizer"></div></th>
-          <th class="resizable" style="width: 180px;">Notes<div class="resizer"></div></th>
+          <th class="resizable" style="width: 180px;">Notes / Sync<div class="resizer"></div></th>
           <th style="width: 65px; text-align: center;">Actions</th>
         </tr>
       </thead>
@@ -516,74 +433,10 @@
     </table>
   </div>
 
-  <!-- Modal: Location & Room Manager -->
-  <div id="locationModal" class="modal-overlay">
-    <div class="modal-card">
-      <div class="modal-header">
-        <h2>Manage Rooms & Locations (Cloud Synced)</h2>
-        <button class="btn-secondary" onclick="closeLocationManager()" style="padding: 0; width: 32px; height: 32px; font-size: 1rem;">✕</button>
-      </div>
-      <div class="modal-body">
-        
-        <div class="loc-add-box">
-          <span class="box-title">Add New Room Location</span>
-          <div class="loc-inputs-row">
-            <div class="loc-col" style="flex: 1 1 110px;">
-              <label>Room No.</label>
-              <input type="text" id="newRoomNo" placeholder="e.g. E411">
-            </div>
-            <div class="loc-col" style="flex: 2 1 180px;">
-              <label>Teacher</label>
-              <input type="text" id="newTeacher" placeholder="Last, First">
-            </div>
-            <div class="loc-col" style="flex: 1.5 1 150px;">
-              <label>Class / Grade</label>
-              <input type="text" id="newClass" placeholder="e.g. 4th Grade">
-            </div>
-            <div class="loc-btn-col">
-              <button class="btn-success" onclick="addNewLocation()">+ Add Room</button>
-            </div>
-          </div>
-        </div>
-
-        <div class="modal-toolbar">
-          <span style="font-size: 0.85rem; color: var(--text-muted);">
-            Total: <strong id="locTotalCount">0</strong> rooms
-          </span>
-          <button id="btnDeleteSelectedRooms" class="btn-danger" onclick="deleteSelectedLocations()" style="font-size: 0.8rem; padding: 0 12px; height: 32px; width: auto; display: none;">
-            Delete Selected (<span id="locSelectedCount">0</span>)
-          </button>
-        </div>
-
-        <div class="modal-table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th style="width: 38px; text-align: center;">
-                  <input type="checkbox" id="selectAllLocations" onclick="toggleSelectAllLocations(this.checked)">
-                </th>
-                <th style="width: 100px;">Room No.</th>
-                <th>Teacher</th>
-                <th style="width: 130px;">Class</th>
-                <th style="width: 60px; text-align: center;">Delete</th>
-              </tr>
-            </thead>
-            <tbody id="locationListBody"></tbody>
-          </table>
-        </div>
-      </div>
-      <div class="modal-footer">
-        <button class="btn-danger" onclick="resetLocationsToDefault()" style="font-size:0.8rem;">Reset to Default</button>
-        <button class="btn-primary" onclick="closeLocationManager()">Done</button>
-      </div>
-    </div>
-  </div>
-
 <script>
-// Live Cloudflare Worker Relay URL
 const IIQ_WORKER_PROXY_URL = "https://incident6767.pandababble.workers.dev";
 
-// 13 iiQ District Asset Statuses exactly as listed in your iiQ Asset Statuses panel
+// 13 iiQ District Asset Statuses
 const IIQ_STATUS_LIST = [
   "In Service",
   "In Storage",
@@ -600,55 +453,11 @@ const IIQ_STATUS_LIST = [
   "Stolen"
 ];
 
-const defaultLocationDirectory = [
-  {"Room No.": "P209", "Class": "LAMPS", "Teacher": "Harris, Brittany"},
-  {"Room No.": "E402", "Class": "4th Grade", "Teacher": "Carter, Cynthia"},
-  {"Room No.": "E404", "Class": "4th Grade", "Teacher": "Amos, Heather"},
-  {"Room No.": "E405", "Class": "4th Grade", "Teacher": "Gavenda, Elisa"},
-  {"Room No.": "E406", "Class": "4th Grade", "Teacher": "Moore-Brown, Mellody"},
-  {"Room No.": "E407", "Class": "4th Grade", "Teacher": "Spencer, Alliah"},
-  {"Room No.": "E408", "Class": "4th Grade", "Teacher": "Cooper, Ava"},
-  {"Room No.": "E409", "Class": "4th Grade", "Teacher": "Aldaco, Damaris"},
-  {"Room No.": "E410", "Class": "4th Grade", "Teacher": "Coleman, Jasmine"},
-  {"Room No.": "E500", "Class": "5th Grade", "Teacher": "Robledo, Rosa"},
-  {"Room No.": "E502", "Class": "5th Grade", "Teacher": "Johnson, Pamela"},
-  {"Room No.": "E504", "Class": "5th Grade", "Teacher": "Logan-Mumphrey, Renee"},
-  {"Room No.": "E505", "Class": "5th Grade", "Teacher": "Owen, Efe"},
-  {"Room No.": "E507", "Class": "5th Grade", "Teacher": "Rouse, Chevalia"},
-  {"Room No.": "E507", "Class": "5th Grade", "Teacher": "Dewberry, Nicole"},
-  {"Room No.": "E508", "Class": "5th Grade", "Teacher": "Williams, Lauren"},
-  {"Room No.": "E509", "Class": "5th Grade", "Teacher": "Brown, Charlotte"},
-  {"Room No.": "E510", "Class": "5th Grade", "Teacher": "Richard, Melissa"},
-  {"Room No.": "E601", "Class": "3rd Grade", "Teacher": "Barrantes, Rosella"},
-  {"Room No.": "E602", "Class": "3rd Grade", "Teacher": "Singleton, Tracy"},
-  {"Room No.": "E603", "Class": "3rd Grade", "Teacher": "Lou, Ge"},
-  {"Room No.": "E604", "Class": "3rd Grade", "Teacher": "Yaseen, Rebeka"},
-  {"Room No.": "E607", "Class": "3rd Grade", "Teacher": "Bourque, Kennedy"},
-  {"Room No.": "E608", "Class": "3rd Grade", "Teacher": "Roman, Daniel"},
-  {"Room No.": "E609", "Class": "3rd Grade", "Teacher": "Pena, Ana"},
-  {"Room No.": "E610", "Class": "3rd Grade", "Teacher": "Bernal, Kimberly"},
-  {"Room No.": "K02", "Class": "2nd Grade", "Teacher": "Forero, Diana"},
-  {"Room No.": "K04", "Class": "2nd Grade", "Teacher": "Fernandez, Alfonso"},
-  {"Room No.": "K05", "Class": "2nd Grade", "Teacher": "Triche, Trichaad"},
-  {"Room No.": "K06", "Class": "2nd Grade", "Teacher": "Cantu, Jessica"},
-  {"Room No.": "K07", "Class": "2nd Grade", "Teacher": "Johnson, Desire"},
-  {"Room No.": "K08", "Class": "2nd Grade", "Teacher": "Teague, Erin"},
-  {"Room No.": "K09", "Class": "2nd Grade", "Teacher": "Haby, Shanna"},
-  {"Room No.": "K10", "Class": "2nd Grade", "Teacher": "Moore-Lynch, Madison"},
-  {"Room No.": "P102", "Class": "1st Grade", "Teacher": "Ogbone, Regina"},
-  {"Room No.": "P103", "Class": "1st Grade", "Teacher": "Smith, Brittney"},
-  {"Room No.": "P104", "Class": "1st Grade", "Teacher": "Pintado, Natalie"},
-  {"Room No.": "P105", "Class": "1st Grade", "Teacher": "Wood, Brisa"},
-  {"Room No.": "P106", "Class": "1st Grade", "Teacher": "Daniel, Emma"},
-  {"Room No.": "P107", "Class": "1st Grade", "Teacher": "Marks, Alba"},
-  {"Room No.": "P108", "Class": "1st Grade", "Teacher": "Johnson, Katelynn"},
-  {"Room No.": "P109", "Class": "1st Grade", "Teacher": "Turner, Linda"}
-];
+let iiqSites = [];
+let iiqLocationsCache = {}; // Cache: { siteId: [ locations ] }
 
-let locationDirectory = defaultLocationDirectory;
 let inventory = [];
 let selectedDocIds = new Set();
-let selectedLocIndices = new Set();
 let isCloudReady = false;
 
 window.addEventListener('firebase-error', (e) => {
@@ -677,52 +486,114 @@ window.addEventListener('firebase-ready', () => {
   }, (err) => {
     statusEl.className = 'sync-status error';
     statusEl.innerHTML = '<span class="sync-dot"></span> Sync Blocked';
-    document.getElementById('scanFeedback').innerHTML = 
-      `<span class="status-warn">Cloud Permission Denied: Check Firestore Security Rules! (${err.message})</span>`;
-  });
-
-  const locDoc = window.fs.doc(window.db, "config", "locations");
-  window.fs.onSnapshot(locDoc, (docSnap) => {
-    if (docSnap.exists() && Array.isArray(docSnap.data().list)) {
-      locationDirectory = docSnap.data().list;
-    } else {
-      window.fs.setDoc(locDoc, { list: defaultLocationDirectory }).catch(err => {
-        console.warn("Initial seed error:", err.message);
-      });
-      locationDirectory = defaultLocationDirectory;
-    }
-    initDropdowns();
-    renderLocationList();
-  }, (err) => {
-    console.warn("Location sync denied:", err.message);
   });
 });
 
-function initDropdowns() {
+// Load Sites (Campuses) directly from Incident IQ
+async function loadIiqSites() {
+  const campusSelect = document.getElementById('campusSelect');
+  const massCampusVal = document.getElementById('massCampusVal');
+  campusSelect.innerHTML = '<option value="">Loading Campuses...</option>';
+
+  try {
+    const res = await fetch(IIQ_WORKER_PROXY_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "getSites" })
+    });
+    const data = await res.json();
+    iiqSites = Array.isArray(data) ? data : (data.Items || []);
+
+    campusSelect.innerHTML = '<option value="">-- Choose Campus / Building --</option>';
+    massCampusVal.innerHTML = '<option value="">-- Choose Campus / Building --</option>';
+
+    iiqSites.forEach(site => {
+      const siteName = site.Name || site.SiteName || site.Label;
+      const siteId = site.SiteId || site.Id;
+      campusSelect.add(new Option(siteName, siteId));
+      massCampusVal.add(new Option(siteName, siteId));
+    });
+
+  } catch (e) {
+    campusSelect.innerHTML = '<option value="">Error loading iiQ sites</option>';
+    console.warn("Could not load iiQ sites:", e.message);
+  }
+}
+
+// Fetch Rooms for the chosen Campus
+async function onCampusChanged() {
+  const siteId = document.getElementById('campusSelect').value;
   const roomSelect = document.getElementById('roomSelect');
-  const massRoomVal = document.getElementById('massRoomVal');
-  const massStatusVal = document.getElementById('massStatusVal');
-  const prevSelected = roomSelect.value;
-  
-  roomSelect.innerHTML = '<option value="">-- Choose Room / Teacher --</option>';
-  massRoomVal.innerHTML = '<option value="">-- Choose New Room --</option>';
 
-  locationDirectory.forEach((item, index) => {
-    const label = `${item["Room No."]} - ${item["Teacher"]} (${item["Class"]})`;
-    const opt1 = new Option(label, index);
-    const opt2 = new Option(label, index);
-    roomSelect.add(opt1);
-    massRoomVal.add(opt2);
+  if (!siteId) {
+    roomSelect.innerHTML = '<option value="">-- Choose Campus First --</option>';
+    return;
+  }
+
+  roomSelect.innerHTML = '<option value="">Loading Rooms...</option>';
+
+  try {
+    if (!iiqLocationsCache[siteId]) {
+      const res = await fetch(IIQ_WORKER_PROXY_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "getLocations", siteId: siteId })
+      });
+      const data = await res.json();
+      iiqLocationsCache[siteId] = Array.isArray(data) ? data : (data.Items || []);
+    }
+
+    const rooms = iiqLocationsCache[siteId];
+    roomSelect.innerHTML = '<option value="">-- Choose Room / Location --</option>';
+    rooms.forEach(loc => {
+      const locName = loc.Name || loc.RoomNumber || loc.LocationName;
+      const locId = loc.LocationId || loc.Id;
+      roomSelect.add(new Option(locName, locId));
+    });
+
+  } catch (e) {
+    roomSelect.innerHTML = '<option value="">Error loading rooms</option>';
+    console.warn("Error loading rooms:", e.message);
+  }
+}
+
+// Mass update campus change handler
+async function onMassCampusChanged() {
+  const siteId = document.getElementById('massCampusVal').value;
+  const roomSelect = document.getElementById('massRoomVal');
+
+  if (!siteId) {
+    roomSelect.innerHTML = '<option value="">-- Choose Campus First --</option>';
+    return;
+  }
+
+  roomSelect.innerHTML = '<option value="">Loading Rooms...</option>';
+
+  if (!iiqLocationsCache[siteId]) {
+    const res = await fetch(IIQ_WORKER_PROXY_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "getLocations", siteId: siteId })
+    });
+    const data = await res.json();
+    iiqLocationsCache[siteId] = Array.isArray(data) ? data : (data.Items || []);
+  }
+
+  const rooms = iiqLocationsCache[siteId];
+  roomSelect.innerHTML = '<option value="">-- Choose Room --</option>';
+  rooms.forEach(loc => {
+    const locName = loc.Name || loc.RoomNumber || loc.LocationName;
+    const locId = loc.LocationId || loc.Id;
+    roomSelect.add(new Option(locName, locId));
   });
+}
 
+function initStatusDropdowns() {
+  const massStatusVal = document.getElementById('massStatusVal');
   massStatusVal.innerHTML = '<option value="">-- Choose Status --</option>';
   IIQ_STATUS_LIST.forEach(st => {
     massStatusVal.add(new Option(st, st));
   });
-
-  if (prevSelected && locationDirectory[prevSelected]) {
-    roomSelect.value = prevSelected;
-  }
 }
 
 function updateRoomFilterDropdown() {
@@ -736,7 +607,6 @@ function updateRoomFilterDropdown() {
   });
 
   const sortedRooms = Object.keys(roomCounts).sort();
-
   filterSelect.innerHTML = '<option value="">All Rooms</option>';
   sortedRooms.forEach(room => {
     const opt = new Option(`${room} (${roomCounts[room]})`, room);
@@ -752,18 +622,6 @@ function clearFilters() {
   document.getElementById('searchInput').value = '';
   document.getElementById('filterRoomSelect').value = '';
   renderTable();
-}
-
-function syncLocationDetails() {
-  const selectedIndex = document.getElementById('roomSelect').value;
-  if (selectedIndex !== "") {
-    const item = locationDirectory[selectedIndex];
-    document.getElementById('teacherDisplay').value = item["Teacher"];
-    document.getElementById('classDisplay').value = item["Class"];
-  } else {
-    document.getElementById('teacherDisplay').value = "";
-    document.getElementById('classDisplay').value = "";
-  }
 }
 
 // Anti-duplicate input handlers for Bluetooth Scanners
@@ -800,7 +658,7 @@ async function fetchIiqAssetDetails(assetTag) {
     const res = await fetch(IIQ_WORKER_PROXY_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ assetTag: String(assetTag).trim() })
+      body: JSON.stringify({ action: "lookup", assetTag: String(assetTag).trim() })
     });
 
     if (!res.ok) return null;
@@ -811,8 +669,10 @@ async function fetchIiqAssetDetails(assetTag) {
       const serial = a.SerialNumber || "";
       const model = a.ModelName || (a.Model && a.Model.Name) || "";
       const status = (a.Status && a.Status.Name) || a.StatusName || "In Service";
+      const assetId = a.AssetId || "";
       
       return {
+        assetId: assetId,
         serialNumber: serial,
         model: model,
         status: status
@@ -826,7 +686,8 @@ async function fetchIiqAssetDetails(assetTag) {
 
 async function handleScanSubmit() {
   const rawTag = scanInput.value.trim();
-  const roomIdx = document.getElementById('roomSelect').value;
+  const campusSel = document.getElementById('campusSelect');
+  const roomSel = document.getElementById('roomSelect');
   const cartTag = document.getElementById('cartAssetTag').value.trim();
   const feedback = document.getElementById('scanFeedback');
 
@@ -836,32 +697,38 @@ async function handleScanSubmit() {
     return;
   }
 
-  if (roomIdx === "") {
-    feedback.innerHTML = '<span class="status-warn">Please select a Room No. before scanning.</span>';
+  if (!campusSel.value || !roomSel.value) {
+    feedback.innerHTML = '<span class="status-warn">Please select both a Campus and Room before scanning.</span>';
     scanInput.focus();
     return;
   }
+
+  const campusName = campusSel.options[campusSel.selectedIndex].text;
+  const roomName = roomSel.options[roomSel.selectedIndex].text;
+  const siteId = campusSel.value;
+  const locationId = roomSel.value;
 
   feedback.innerHTML = `<span>Querying Incident IQ for #${rawTag}...</span>`;
 
   // Fetch device details from Incident IQ
   const iiqData = await fetchIiqAssetDetails(rawTag);
 
-  const loc = locationDirectory[roomIdx];
   const newId = Date.now().toString() + "_" + rawTag;
-
+  const foundAssetId = (iiqData && iiqData.assetId) ? iiqData.assetId : "";
   const foundSerial = (iiqData && iiqData.serialNumber) ? iiqData.serialNumber : "";
   const foundModel = (iiqData && iiqData.model) ? iiqData.model : "";
   const foundStatus = (iiqData && iiqData.status) ? iiqData.status : "In Service";
 
   const record = {
+    assetId: foundAssetId,
     assetTag: rawTag,
     serialNumber: foundSerial,
     model: foundModel,
     status: foundStatus,
-    roomNo: loc["Room No."],
-    teacher: loc["Teacher"],
-    className: loc["Class"],
+    campus: campusName,
+    siteId: siteId,
+    roomNo: roomName,
+    locationId: locationId,
     cartAssetTag: cartTag,
     notes: "",
     timestamp: Date.now()
@@ -871,7 +738,7 @@ async function handleScanSubmit() {
     if (isCloudReady) {
       await window.fs.setDoc(window.fs.doc(window.db, "inventory", newId), record);
       const iiqInfo = foundSerial ? ` [S/N: ${foundSerial} | ${foundModel} (${foundStatus})]` : '';
-      feedback.innerHTML = `<span class="status-ok">Recorded #${rawTag}${iiqInfo} &rarr; Room ${loc["Room No."]} (${loc["Teacher"]})</span>`;
+      feedback.innerHTML = `<span class="status-ok">Recorded #${rawTag}${iiqInfo} &rarr; ${campusName} - ${roomName}</span>`;
     } else {
       feedback.innerHTML = `<span class="status-warn">Cloud not connected yet. Check network.</span>`;
     }
@@ -891,14 +758,14 @@ function getFilteredData() {
       return false;
     }
     if (query) {
-      const matchTeacher = item.teacher && item.teacher.toLowerCase().includes(query);
+      const matchCampus = item.campus && item.campus.toLowerCase().includes(query);
       const matchRoom = item.roomNo && item.roomNo.toLowerCase().includes(query);
       const matchTag = item.assetTag && item.assetTag.toLowerCase().includes(query);
       const matchSerial = item.serialNumber && item.serialNumber.toLowerCase().includes(query);
       const matchModel = item.model && item.model.toLowerCase().includes(query);
       const matchStatus = item.status && item.status.toLowerCase().includes(query);
       const matchNotes = item.notes && item.notes.toLowerCase().includes(query);
-      if (!matchTeacher && !matchRoom && !matchTag && !matchSerial && !matchModel && !matchStatus && !matchNotes) return false;
+      if (!matchCampus && !matchRoom && !matchTag && !matchSerial && !matchModel && !matchStatus && !matchNotes) return false;
     }
     return true;
   });
@@ -940,11 +807,10 @@ function renderTable() {
           ${statusOptionsHtml}
         </select>
       </td>
-      <td><input class="editable-input" value="${escapeHtml(item.roomNo)}" onchange="updateRowField('${item.id}', 'roomNo', this.value)"></td>
-      <td><input class="editable-input" value="${escapeHtml(item.teacher)}" onchange="updateRowField('${item.id}', 'teacher', this.value)"></td>
-      <td><input class="editable-input" value="${escapeHtml(item.className)}" onchange="updateRowField('${item.id}', 'className', this.value)"></td>
-      <td><input class="editable-input" value="${escapeHtml(item.cartAssetTag)}" onchange="updateRowField('${item.id}', 'cartAssetTag', this.value)"></td>
-      <td><input class="editable-input" value="${escapeHtml(item.notes)}" placeholder="Tap to add notes..." onchange="updateRowField('${item.id}', 'notes', this.value)"></td>
+      <td><input class="editable-input" value="${escapeHtml(item.campus || '')}" onchange="updateRowField('${item.id}', 'campus', this.value)"></td>
+      <td><input class="editable-input" value="${escapeHtml(item.roomNo || '')}" onchange="updateRowField('${item.id}', 'roomNo', this.value)"></td>
+      <td><input class="editable-input" value="${escapeHtml(item.cartAssetTag || '')}" onchange="updateRowField('${item.id}', 'cartAssetTag', this.value)"></td>
+      <td><input class="editable-input" value="${escapeHtml(item.notes || '')}" placeholder="Notes / sync info..." onchange="updateRowField('${item.id}', 'notes', this.value)"></td>
       <td style="text-align:center;">
         <button class="btn-danger row-action" onclick="deleteRow('${item.id}')">Del</button>
       </td>
@@ -1003,8 +869,9 @@ function updateMassBar() {
 
 function toggleMassInput() {
   const field = document.getElementById('massField').value;
-  document.getElementById('massRoomVal').style.display = (field === 'room') ? 'inline-block' : 'none';
   document.getElementById('massStatusVal').style.display = (field === 'status') ? 'inline-block' : 'none';
+  document.getElementById('massCampusVal').style.display = (field === 'location') ? 'inline-block' : 'none';
+  document.getElementById('massRoomVal').style.display = (field === 'location') ? 'inline-block' : 'none';
   document.getElementById('massTextVal').style.display = (field === 'cart' || field === 'notes') ? 'inline-block' : 'none';
 }
 
@@ -1013,23 +880,28 @@ async function applyMassUpdate() {
   const field = document.getElementById('massField').value;
   const batch = window.fs.writeBatch(window.db);
 
-  if (field === 'room') {
-    const locIdx = document.getElementById('massRoomVal').value;
-    if (locIdx === "") return;
-    const loc = locationDirectory[locIdx];
-    selectedDocIds.forEach(id => {
-      const ref = window.fs.doc(window.db, "inventory", id);
-      batch.update(ref, {
-        roomNo: loc["Room No."],
-        teacher: loc["Teacher"],
-        className: loc["Class"]
-      });
-    });
-  } else if (field === 'status') {
+  if (field === 'status') {
     const val = document.getElementById('massStatusVal').value;
     if (!val) return;
     selectedDocIds.forEach(id => {
       batch.update(window.fs.doc(window.db, "inventory", id), { status: val });
+    });
+  } else if (field === 'location') {
+    const cSel = document.getElementById('massCampusVal');
+    const rSel = document.getElementById('massRoomVal');
+    if (!cSel.value || !rSel.value) {
+      alert("Please choose both a Campus and Room.");
+      return;
+    }
+    const cName = cSel.options[cSel.selectedIndex].text;
+    const rName = rSel.options[rSel.selectedIndex].text;
+    selectedDocIds.forEach(id => {
+      batch.update(window.fs.doc(window.db, "inventory", id), {
+        campus: cName,
+        siteId: cSel.value,
+        roomNo: rName,
+        locationId: rSel.value
+      });
     });
   } else if (field === 'cart') {
     const val = document.getElementById('massTextVal').value;
@@ -1046,6 +918,113 @@ async function applyMassUpdate() {
   await batch.commit();
 }
 
+// Confirmation & Mass Push to Incident IQ (Status OR Location)
+async function confirmAndPushSelectedToIiq() {
+  if (selectedDocIds.size === 0) return;
+
+  const mode = document.getElementById('massField').value;
+  const selectedRecords = inventory.filter(item => selectedDocIds.has(item.id));
+  const validAssetIds = selectedRecords.map(item => item.assetId).filter(Boolean);
+
+  if (validAssetIds.length === 0) {
+    alert("None of the selected items have an AssetId from Incident IQ. Please re-scan them.");
+    return;
+  }
+
+  const btn = document.getElementById('btnPushIiq');
+  const prevBtnText = btn.innerText;
+
+  if (mode === 'status') {
+    const targetStatus = document.getElementById('massStatusVal').value || "In Service";
+    const confirmMsg = `Push ${validAssetIds.length} device(s) to Incident IQ with Status: "${targetStatus}"?`;
+    if (!confirm(confirmMsg)) return;
+
+    btn.innerText = "Syncing to iiQ...";
+    btn.disabled = true;
+
+    try {
+      await fetch(IIQ_WORKER_PROXY_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "bulkUpdateStatus",
+          assetIds: validAssetIds,
+          statusName: targetStatus
+        })
+      });
+
+      const batch = window.fs.writeBatch(window.db);
+      selectedRecords.forEach(rec => {
+        const ref = window.fs.doc(window.db, "inventory", rec.id);
+        const updatedNotes = rec.notes ? `${rec.notes} [Synced ${targetStatus}]` : `[Synced ${targetStatus}]`;
+        batch.update(ref, { status: targetStatus, notes: updatedNotes });
+      });
+      await batch.commit();
+
+      alert(`Successfully synced ${validAssetIds.length} asset(s) status to Incident IQ!`);
+    } catch (err) {
+      alert(`iiQ Push Error: ${err.message}`);
+    } finally {
+      btn.innerText = prevBtnText;
+      btn.disabled = false;
+    }
+
+  } else if (mode === 'location') {
+    const cSel = document.getElementById('massCampusVal');
+    const rSel = document.getElementById('massRoomVal');
+
+    if (!cSel.value || !rSel.value) {
+      alert("Please select both a Campus and Room under Mass Update.");
+      return;
+    }
+
+    const cName = cSel.options[cSel.selectedIndex].text;
+    const rName = rSel.options[rSel.selectedIndex].text;
+
+    const confirmMsg = `Push ${validAssetIds.length} device(s) to Incident IQ with Location: "${cName} - ${rName}"?`;
+    if (!confirm(confirmMsg)) return;
+
+    btn.innerText = "Syncing to iiQ...";
+    btn.disabled = true;
+
+    try {
+      await fetch(IIQ_WORKER_PROXY_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "bulkUpdateLocation",
+          assetIds: validAssetIds,
+          siteId: cSel.value,
+          locationId: rSel.value
+        })
+      });
+
+      const batch = window.fs.writeBatch(window.db);
+      selectedRecords.forEach(rec => {
+        const ref = window.fs.doc(window.db, "inventory", rec.id);
+        const updatedNotes = rec.notes ? `${rec.notes} [Synced ${rName}]` : `[Synced ${rName}]`;
+        batch.update(ref, { 
+          campus: cName, 
+          siteId: cSel.value, 
+          roomNo: rName, 
+          locationId: rSel.value, 
+          notes: updatedNotes 
+        });
+      });
+      await batch.commit();
+
+      alert(`Successfully synced ${validAssetIds.length} asset(s) location to Incident IQ!`);
+    } catch (err) {
+      alert(`iiQ Push Error: ${err.message}`);
+    } finally {
+      btn.innerText = prevBtnText;
+      btn.disabled = false;
+    }
+  } else {
+    alert("Please set the Mass Update dropdown to 'Status' or 'Campus & Room' to push to Incident IQ.");
+  }
+}
+
 async function deleteSelected() {
   if (selectedDocIds.size === 0 || !isCloudReady) return;
   if (!confirm(`Delete ${selectedDocIds.size} selected record(s) from cloud?`)) return;
@@ -1056,136 +1035,6 @@ async function deleteSelected() {
   });
   await batch.commit();
   selectedDocIds.clear();
-}
-
-function openLocationManager() {
-  selectedLocIndices.clear();
-  renderLocationList();
-  document.getElementById('locationModal').classList.add('active');
-}
-
-function closeLocationManager() {
-  document.getElementById('locationModal').classList.remove('active');
-  selectedLocIndices.clear();
-  syncLocationDetails();
-}
-
-function renderLocationList() {
-  const tbody = document.getElementById('locationListBody');
-  tbody.innerHTML = '';
-  document.getElementById('locTotalCount').innerText = locationDirectory.length;
-
-  locationDirectory.forEach((loc, idx) => {
-    const isChecked = selectedLocIndices.has(idx);
-    const tr = document.createElement('tr');
-    tr.innerHTML = `
-      <td style="text-align: center;">
-        <input type="checkbox" onchange="toggleSelectLocation(${idx}, this.checked)" ${isChecked ? 'checked' : ''}>
-      </td>
-      <td><input class="editable-input" value="${escapeHtml(loc["Room No."])}" onchange="updateLocationField(${idx}, 'Room No.', this.value)"></td>
-      <td><input class="editable-input" value="${escapeHtml(loc["Teacher"])}" onchange="updateLocationField(${idx}, 'Teacher', this.value)"></td>
-      <td><input class="editable-input" value="${escapeHtml(loc["Class"])}" onchange="updateLocationField(${idx}, 'Class', this.value)"></td>
-      <td style="text-align:center;">
-        <button class="btn-danger row-action" onclick="deleteLocation(${idx})">✕</button>
-      </td>
-    `;
-    tbody.appendChild(tr);
-  });
-
-  updateLocSelectionUI();
-}
-
-function toggleSelectLocation(idx, isChecked) {
-  if (isChecked) selectedLocIndices.add(idx);
-  else selectedLocIndices.delete(idx);
-  updateLocSelectionUI();
-}
-
-function toggleSelectAllLocations(isChecked) {
-  if (isChecked) {
-    locationDirectory.forEach((_, idx) => selectedLocIndices.add(idx));
-  } else {
-    selectedLocIndices.clear();
-  }
-  renderLocationList();
-}
-
-function updateLocSelectionUI() {
-  const btnDeleteSelected = document.getElementById('btnDeleteSelectedRooms');
-  const countSpan = document.getElementById('locSelectedCount');
-  const selectAllBox = document.getElementById('selectAllLocations');
-
-  countSpan.innerText = selectedLocIndices.size;
-  btnDeleteSelected.style.display = selectedLocIndices.size > 0 ? 'inline-flex' : 'none';
-
-  if (selectAllBox) {
-    selectAllBox.checked = locationDirectory.length > 0 && selectedLocIndices.size === locationDirectory.length;
-  }
-}
-
-async function deleteSelectedLocations() {
-  if (selectedLocIndices.size === 0) return;
-  if (!confirm(`Delete ${selectedLocIndices.size} selected room location(s) from cloud?`)) return;
-
-  locationDirectory = locationDirectory.filter((_, idx) => !selectedLocIndices.has(idx));
-  selectedLocIndices.clear();
-  await saveLocationsCloud();
-  renderLocationList();
-}
-
-async function saveLocationsCloud() {
-  if (!isCloudReady) return;
-  await window.fs.setDoc(window.fs.doc(window.db, "config", "locations"), { list: locationDirectory });
-  initDropdowns();
-}
-
-async function addNewLocation() {
-  const room = document.getElementById('newRoomNo').value.trim();
-  const teacher = document.getElementById('newTeacher').value.trim();
-  const cls = document.getElementById('newClass').value.trim();
-
-  if (!room || !teacher) {
-    alert("Please provide at least a Room No. and Teacher name.");
-    return;
-  }
-
-  locationDirectory.unshift({
-    "Room No.": room,
-    "Teacher": teacher,
-    "Class": cls || "General"
-  });
-
-  await saveLocationsCloud();
-  renderLocationList();
-
-  document.getElementById('newRoomNo').value = '';
-  document.getElementById('newTeacher').value = '';
-  document.getElementById('newClass').value = '';
-}
-
-async function updateLocationField(index, field, value) {
-  if (locationDirectory[index]) {
-    locationDirectory[index][field] = value;
-    await saveLocationsCloud();
-  }
-}
-
-async function deleteLocation(index) {
-  if (confirm(`Remove room ${locationDirectory[index]["Room No."]} (${locationDirectory[index]["Teacher"]})?`)) {
-    locationDirectory.splice(index, 1);
-    selectedLocIndices.delete(index);
-    await saveLocationsCloud();
-    renderLocationList();
-  }
-}
-
-async function resetLocationsToDefault() {
-  if (confirm("Reset the location directory back to the original spreadsheet data?")) {
-    locationDirectory = JSON.parse(JSON.stringify(defaultLocationDirectory));
-    selectedLocIndices.clear();
-    await saveLocationsCloud();
-    renderLocationList();
-  }
 }
 
 function exportData(format) {
@@ -1206,29 +1055,27 @@ function exportData(format) {
   let mimeType = "";
 
   if (format === 'json') {
-    content = JSON.stringify(targetData.map(({assetTag, serialNumber, model, status, roomNo, teacher, className, cartAssetTag, notes}) => ({
+    content = JSON.stringify(targetData.map(({assetTag, serialNumber, model, status, campus, roomNo, cartAssetTag, notes}) => ({
       "Asset Tag": assetTag,
       "Serial Number": serialNumber || "",
       "Model": model || "",
       "Status": status || "In Service",
-      "Room No.": roomNo,
-      "Teacher": teacher,
-      "Class": className,
+      "Campus": campus || "",
+      "Room No.": roomNo || "",
       "Cart Asset Tag": cartAssetTag,
       "Notes": notes
     })), null, 2);
     filename += ".json";
     mimeType = "application/json";
   } else {
-    const headers = ["Asset Tag", "Serial Number", "Model", "Status", "Room No.", "Teacher", "Class", "Cart Asset Tag", "Notes"];
+    const headers = ["Asset Tag", "Serial Number", "Model", "Status", "Campus", "Room No.", "Cart Asset Tag", "Notes"];
     const rows = targetData.map(item => [
       `"${item.assetTag || ''}"`,
       `"${item.serialNumber || ''}"`,
       `"${item.model || ''}"`,
       `"${item.status || 'In Service'}"`,
+      `"${item.campus || ''}"`,
       `"${item.roomNo || ''}"`,
-      `"${(item.teacher || '').replace(/"/g, '""')}"`,
-      `"${(item.className || '').replace(/"/g, '""')}"`,
       `"${item.cartAssetTag || ''}"`,
       `"${(item.notes || '').replace(/"/g, '""')}"`
     ]);
@@ -1253,48 +1100,58 @@ function escapeHtml(str) {
   return String(str).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/'/g, '&#039;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
-// Resizable column event listeners
+// Resizable column pointer engine (Mac mouse & iPad touch)
 function makeTableResizable(table) {
   const row = table.querySelector('thead tr');
-  const cols = row ? row.children : [];
-  if (!cols) return;
+  if (!row) return;
+  const cols = Array.from(row.children);
 
-  table.style.overflow = 'hidden';
-
-  Array.from(cols).forEach((col) => {
+  cols.forEach((col) => {
     const resizer = col.querySelector('.resizer');
     if (!resizer) return;
 
-    let x = 0;
-    let w = 0;
+    let startX = 0;
+    let startWidth = 0;
+    let tableStartWidth = 0;
 
-    const mouseDownHandler = function (e) {
-      x = e.clientX;
-      const styles = window.getComputedStyle(col);
-      w = parseInt(styles.width, 10);
+    const onPointerDown = function (e) {
+      startX = e.clientX || (e.touches && e.touches[0].clientX);
+      startWidth = col.getBoundingClientRect().width;
+      tableStartWidth = table.getBoundingClientRect().width;
 
-      document.addEventListener('mousemove', mouseMoveHandler);
-      document.addEventListener('mouseup', mouseUpHandler);
       resizer.classList.add('resizing');
+
+      window.addEventListener('pointermove', onPointerMove);
+      window.addEventListener('pointerup', onPointerUp);
+      window.addEventListener('pointercancel', onPointerUp);
+
+      e.preventDefault();
+      e.stopPropagation();
     };
 
-    const mouseMoveHandler = function (e) {
-      const dx = e.clientX - x;
-      col.style.width = `${Math.max(w + dx, 60)}px`;
+    const onPointerMove = function (e) {
+      const currentX = e.clientX || (e.touches && e.touches[0].clientX);
+      const diffX = currentX - startX;
+      const newWidth = Math.max(60, startWidth + diffX);
+
+      col.style.width = `${newWidth}px`;
+      table.style.width = `${tableStartWidth + diffX}px`;
     };
 
-    const mouseUpHandler = function () {
-      document.removeEventListener('mousemove', mouseMoveHandler);
-      document.removeEventListener('mouseup', mouseUpHandler);
+    const onPointerUp = function () {
       resizer.classList.remove('resizing');
+      window.removeEventListener('pointermove', onPointerMove);
+      window.removeEventListener('pointerup', onPointerUp);
+      window.removeEventListener('pointercancel', onPointerUp);
     };
 
-    resizer.addEventListener('mousedown', mouseDownHandler);
+    resizer.addEventListener('pointerdown', onPointerDown);
   });
 }
 
 window.onload = () => {
-  initDropdowns();
+  initStatusDropdowns();
+  loadIiqSites();
   const table = document.getElementById('inventoryTable');
   if (table) makeTableResizable(table);
 };
