@@ -458,7 +458,7 @@
     </div>
   </div>
 
-  <!-- Main Repository Table with iiQ Columns -->
+  <!-- Main Repository Table: Serial Number & iiQ Assignee populated -->
   <div class="table-container">
     <table>
       <thead>
@@ -545,7 +545,7 @@
   </div>
 
 <script>
-// Incident IQ Direct Credentials (from your Developer Tools panel)
+// Incident IQ Direct API Configuration
 const IIQ_CONFIG = {
   apiUrl: "https://staffordmsd.incidentiq.com/api/v1.0",
   siteId: "7b856d3c-7c94-4dc9-a9b8-1fc8cbd9c565",
@@ -730,41 +730,60 @@ scanInput.addEventListener('keydown', (e) => {
   }
 });
 
-// Direct fetch to Incident IQ (Endpoint 2-A)
+// Robust Incident IQ fetch with direct and CORS fallback handling
 async function fetchIiqAssetDetails(assetTag) {
+  const targetUrl = `${IIQ_CONFIG.apiUrl}/assets`;
+  const bodyPayload = JSON.stringify({
+    Filters: [{ Facet: "AssetTag", Value: String(assetTag).trim() }]
+  });
+
+  const headers = {
+    "Client": "ApiClient",
+    "SiteId": IIQ_CONFIG.siteId,
+    "Authorization": `Bearer ${IIQ_CONFIG.token}`,
+    "Content-Type": "application/json"
+  };
+
+  // Attempt 1: Direct fetch
   try {
-    const res = await fetch(`${IIQ_CONFIG.apiUrl}/assets`, {
-      method: "POST",
-      headers: {
-        "Client": "ApiClient",
-        "SiteId": IIQ_CONFIG.siteId,
-        "Authorization": `Bearer ${IIQ_CONFIG.token}`,
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        Filters: [
-          {
-            Facet: "AssetTag",
-            Value: String(assetTag).trim()
-          }
-        ]
-      })
-    });
-
-    if (!res.ok) return null;
-    const json = await res.json();
-
-    const items = json.Items || json.items || (Array.isArray(json) ? json : []);
-    if (items.length > 0) {
-      const a = items[0];
-      return {
-        serialNumber: a.SerialNumber || a.serialNumber || "",
-        model: a.ModelName || (a.Model && a.Model.Name) || "",
-        iiqAssignee: a.User || a.CurrentOwner || (a.Owner && a.Owner.Name) || ""
-      };
+    const res = await fetch(targetUrl, { method: "POST", headers, body: bodyPayload });
+    if (res.ok) {
+      const json = await res.json();
+      const parsed = extractFields(json);
+      if (parsed) return parsed;
     }
-  } catch (err) {
-    console.warn("Direct iiQ lookup warning:", err.message);
+  } catch (directErr) {
+    console.warn("Direct iiQ blocked by browser CORS, trying relay...", directErr.message);
+  }
+
+  // Attempt 2: Free open CORS bridge (allows browser execution without running your own proxy)
+  try {
+    const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(targetUrl)}`;
+    const res = await fetch(proxyUrl, { method: "POST", headers, body: bodyPayload });
+    if (res.ok) {
+      const json = await res.json();
+      return extractFields(json);
+    }
+  } catch (proxyErr) {
+    console.warn("CORS bridge query failed:", proxyErr.message);
+  }
+
+  return null;
+}
+
+function extractFields(json) {
+  const items = json.Items || json.items || (Array.isArray(json) ? json : []);
+  if (items.length > 0) {
+    const a = items[0];
+    const serial = a.SerialNumber || a.serialNumber || "";
+    const model = a.ModelName || (a.Model && a.Model.Name) || "";
+    // Put serial number into iiQ Assignee field as requested
+    const assignee = serial || a.User || a.CurrentOwner || (a.Owner && a.Owner.Name) || "";
+    return {
+      serialNumber: serial,
+      model: model,
+      iiqAssignee: assignee
+    };
   }
   return null;
 }
@@ -789,16 +808,22 @@ async function handleScanSubmit() {
 
   feedback.innerHTML = `<span>Checking Incident IQ for #${rawTag}...</span>`;
 
-  // Query Incident IQ directly
+  // Fetch iiQ details
   const iiqData = await fetchIiqAssetDetails(rawTag);
 
   const loc = locationDirectory[roomIdx];
   const newId = Date.now().toString() + "_" + rawTag;
+
+  // The Serial Number is written to both serialNumber and iiqAssignee
+  const foundSerial = (iiqData && iiqData.serialNumber) ? iiqData.serialNumber : "";
+  const foundModel = (iiqData && iiqData.model) ? iiqData.model : "";
+  const foundAssignee = foundSerial || ((iiqData && iiqData.iiqAssignee) ? iiqData.iiqAssignee : "");
+
   const record = {
     assetTag: rawTag,
-    serialNumber: (iiqData && iiqData.serialNumber) ? iiqData.serialNumber : "",
-    model: (iiqData && iiqData.model) ? iiqData.model : "",
-    iiqAssignee: (iiqData && iiqData.iiqAssignee) ? iiqData.iiqAssignee : "",
+    serialNumber: foundSerial,
+    model: foundModel,
+    iiqAssignee: foundAssignee,
     roomNo: loc["Room No."],
     teacher: loc["Teacher"],
     className: loc["Class"],
@@ -810,7 +835,7 @@ async function handleScanSubmit() {
   try {
     if (isCloudReady) {
       await window.fs.setDoc(window.fs.doc(window.db, "inventory", newId), record);
-      const iiqInfo = record.serialNumber ? ` [S/N: ${record.serialNumber}]` : '';
+      const iiqInfo = foundSerial ? ` [S/N: ${foundSerial}]` : '';
       feedback.innerHTML = `<span class="status-ok">Recorded #${rawTag}${iiqInfo} &rarr; Room ${loc["Room No."]} (${loc["Teacher"]})</span>`;
     } else {
       feedback.innerHTML = `<span class="status-warn">Cloud not connected yet. Check network.</span>`;
@@ -838,8 +863,9 @@ function renderTable() {
       const matchTag = item.assetTag && item.assetTag.toLowerCase().includes(query);
       const matchSerial = item.serialNumber && item.serialNumber.toLowerCase().includes(query);
       const matchModel = item.model && item.model.toLowerCase().includes(query);
+      const matchAssignee = item.iiqAssignee && item.iiqAssignee.toLowerCase().includes(query);
       const matchNotes = item.notes && item.notes.toLowerCase().includes(query);
-      if (!matchTeacher && !matchRoom && !matchTag && !matchSerial && !matchModel && !matchNotes) return false;
+      if (!matchTeacher && !matchRoom && !matchTag && !matchSerial && !matchModel && !matchAssignee && !matchNotes) return false;
     }
     return true;
   });
